@@ -15,29 +15,32 @@ import plotly.express as px
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
 # ==========================================
-# 2. DYNAMIC CSS (CLEAN & PROFESSIONAL)
+# 2. DYNAMIC CSS (CLEAN & PROFESSIONAL - NO ICONS)
 # ==========================================
 def inject_custom_css(login_mode=False):
-    # CSS to HIDE Streamlit Branding, GitHub Icon, and Toolbar
-    hide_streamlit_style = """
+    # --- CSS TO HIDE ALL MENUS, GITHUB ICONS, & FOOTERS ---
+    hide_menus = """
         <style>
-            /* Hide the top right menu (Hamburger, Github, Settings) */
-            [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
+            /* Hide the top right '3 dots' menu */
+            #MainMenu {visibility: hidden;}
             
-            /* Hide the top colored decoration bar */
-            [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
+            /* Hide the 'Made with Streamlit' footer */
+            footer {visibility: hidden;}
             
-            /* Hide the "Made with Streamlit" footer */
-            footer { visibility: hidden !important; display: none !important; }
+            /* Hide the header bar (where the running man usually is) */
+            header {visibility: hidden;}
             
-            /* Hide the header */
-            header { visibility: hidden !important; display: none !important; }
+            /* Hide the specific Streamlit toolbar */
+            [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
             
-            /* Slight padding adjustment since header is gone */
-            .main .block-container { padding-top: 2rem !important; }
+            /* Hide the top colorful decoration line */
+            [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
+            
+            /* Adjust padding since header is gone */
+            .block-container { padding-top: 1rem !important; }
         </style>
     """
-    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+    st.markdown(hide_menus, unsafe_allow_html=True)
 
     if login_mode:
         st.markdown("""
@@ -45,7 +48,7 @@ def inject_custom_css(login_mode=False):
             .stApp { background-color: #f4f6f9; }
             .main .block-container {
                 display: flex; flex-direction: column; align-items: center; justify-content: center;
-                height: 90vh; padding: 0 !important; max-width: 100%;
+                height: 95vh; padding: 0 !important; max-width: 100%;
             }
             div[data-testid="stVerticalBlockBorderWrapper"] {
                 background: white; padding: 40px; border-radius: 10px;
@@ -110,7 +113,7 @@ def get_client():
 def get_inventory_sheet():
     client = get_client()
     try: return client.open(SHEET_NAME).sheet1
-    except: st.error(f"❌ Error: Sheet '{SHEET_NAME}' not found. Please share the Google Sheet with the Service Account Email."); st.stop()
+    except: st.error(f"❌ Sheet '{SHEET_NAME}' not found. Please check spelling in Google Drive."); st.stop()
 
 def get_users_sheet():
     client = get_client()
