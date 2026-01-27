@@ -18,25 +18,14 @@ st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wi
 # 2. DYNAMIC CSS (CLEAN & PROFESSIONAL - NO ICONS)
 # ==========================================
 def inject_custom_css(login_mode=False):
-    # --- CSS TO HIDE ALL MENUS, GITHUB ICONS, & FOOTERS ---
+    # CSS TO HIDE MENUS & ICONS
     hide_menus = """
         <style>
-            /* Hide the top right '3 dots' menu */
             #MainMenu {visibility: hidden;}
-            
-            /* Hide the 'Made with Streamlit' footer */
             footer {visibility: hidden;}
-            
-            /* Hide the header bar (where the running man usually is) */
             header {visibility: hidden;}
-            
-            /* Hide the specific Streamlit toolbar */
             [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
-            
-            /* Hide the top colorful decoration line */
             [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
-            
-            /* Adjust padding since header is gone */
             .block-container { padding-top: 1rem !important; }
         </style>
     """
@@ -102,7 +91,6 @@ SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 @st.cache_resource
 def get_client():
     try:
-        # Load from Secrets
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
         return gspread.authorize(creds)
