@@ -12,95 +12,68 @@ import plotly.express as px
 # ==========================================
 # 1. PAGE CONFIG
 # ==========================================
-st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
 # ==========================================
-# 2. DYNAMIC CSS (Standard Desktop UI)
+# 2. DYNAMIC CSS (CLEAN & PROFESSIONAL)
 # ==========================================
 def inject_custom_css(login_mode=False):
+    # CSS to HIDE Streamlit Branding, GitHub Icon, and Toolbar
+    hide_streamlit_style = """
+        <style>
+            /* Hide the top right menu (Hamburger, Github, Settings) */
+            [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
+            
+            /* Hide the top colored decoration bar */
+            [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
+            
+            /* Hide the "Made with Streamlit" footer */
+            footer { visibility: hidden !important; display: none !important; }
+            
+            /* Hide the header */
+            header { visibility: hidden !important; display: none !important; }
+            
+            /* Slight padding adjustment since header is gone */
+            .main .block-container { padding-top: 2rem !important; }
+        </style>
+    """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
     if login_mode:
-        # --- LOGIN SCREEN CSS ---
         st.markdown("""
         <style>
-            /* Hide Sidebar & Header */
-            [data-testid="stSidebar"] { display: none; }
-            header { visibility: hidden; }
-            
-            /* Background */
-            .stApp {
-                background-color: #f4f6f9;
-            }
-            
-            /* Center the Login Card */
+            .stApp { background-color: #f4f6f9; }
             .main .block-container {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 90vh;
-                padding: 0 !important;
-                max-width: 100%;
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                height: 90vh; padding: 0 !important; max-width: 100%;
             }
-
-            /* The Login Card Itself */
             div[data-testid="stVerticalBlockBorderWrapper"] {
-                background: white;
-                padding: 40px;
-                border-radius: 10px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                width: 100%;
-                max-width: 400px; 
-                border: 1px solid #e1e4e8;
-                border-top: 5px solid #cfaa5e; /* Expo Gold */
+                background: white; padding: 40px; border-radius: 10px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; 
+                border: 1px solid #e1e4e8; border-top: 5px solid #cfaa5e;
             }
-
-            /* Logo Centering */
-            div[data-testid="stImage"] {
-                display: flex;
-                justify-content: center;
-                margin-bottom: 20px;
-            }
-            
-            /* Buttons */
+            div[data-testid="stImage"] { display: flex; justify-content: center; margin-bottom: 20px; }
             .stButton>button {
-                width: 100%;
-                border-radius: 5px;
-                height: 45px;
-                font-weight: 600;
-                background-color: #111; 
-                color: white;
-                border: none;
-                transition: 0.3s;
+                width: 100%; border-radius: 5px; height: 45px; font-weight: 600;
+                background-color: #111; color: white; border: none; transition: 0.3s;
             }
-            .stButton>button:hover {
-                background-color: #333;
-            }
-            
-            /* Remove Streamlit footer */
-            footer { display: none; }
+            .stButton>button:hover { background-color: #333; }
         </style>
         """, unsafe_allow_html=True)
     else:
-        # --- DASHBOARD CSS ---
         st.markdown("""
         <style>
             .stApp { background-color: #f8f9fa; }
             section[data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #eee; }
-            
-            /* Cards */
             div[data-testid="stMetric"] { 
                 background-color: #ffffff; padding: 20px; border-radius: 8px; 
                 box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eee; 
             }
-            
-            /* Navigation Buttons */
             .stButton>button { 
                 border-radius: 5px; font-weight: 500; width: 100%; 
                 border: 1px solid #eee; background-color: white; color: #333; 
             }
-            .stButton>button:hover { 
-                border-color: #cfaa5e; color: #cfaa5e; background-color: #fff;
-            }
+            .stButton>button:hover { border-color: #cfaa5e; color: #cfaa5e; background-color: #fff; }
             button[kind="primary"] { background-color: #cfaa5e !important; color: white !important; border: none !important; }
         </style>
         """, unsafe_allow_html=True)
@@ -121,12 +94,12 @@ SHEET_NAME = "Store_Inventory_DB"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # ==========================================
-# 4. CONNECTION (UPDATED FOR CLOUD)
+# 4. CONNECTION (CLOUD READY)
 # ==========================================
 @st.cache_resource
 def get_client():
     try:
-        # Load from Streamlit Secrets (Correct method for Cloud)
+        # Load from Secrets
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
         return gspread.authorize(creds)
@@ -137,7 +110,7 @@ def get_client():
 def get_inventory_sheet():
     client = get_client()
     try: return client.open(SHEET_NAME).sheet1
-    except: st.error(f"❌ Sheet '{SHEET_NAME}' not found."); st.stop()
+    except: st.error(f"❌ Error: Sheet '{SHEET_NAME}' not found. Please share the Google Sheet with the Service Account Email."); st.stop()
 
 def get_users_sheet():
     client = get_client()
@@ -245,22 +218,18 @@ init_session()
 
 def login_screen():
     inject_custom_css(login_mode=True)
-    
     with st.container(border=True):
         try: st.image("logo.png", width=160) 
         except: st.markdown("<h1 style='text-align: center;'>🏢</h1>", unsafe_allow_html=True)
-        
         st.markdown("<h3 style='text-align: center;'>Welcome Back</h3>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Sign in to continue</p>", unsafe_allow_html=True)
-
-        role_tab1, role_tab2 = st.tabs(["Technician", "Admin"])
         
+        role_tab1, role_tab2 = st.tabs(["Technician", "Admin"])
         with role_tab1:
             try:
                 us = get_users_sheet(); data = us.get_all_records(); df = pd.DataFrame(data)
                 users_list = df['Username'].tolist() if not df.empty else []
             except: users_list = []
-
             with st.form("tech_login"):
                 u = st.selectbox("Username", users_list, placeholder="Select User")
                 p = st.text_input("PIN Code", type="password", placeholder="Enter PIN")
@@ -278,7 +247,6 @@ def login_screen():
                             st.rerun()
                         else: st.error("Incorrect PIN")
                     else: st.error("Database error")
-
         with role_tab2:
             with st.form("admin_login"):
                 pwd = st.text_input("Password", type="password", placeholder="Admin Password")
@@ -292,7 +260,6 @@ def login_screen():
                         save_session("Administrator", "Admin", True)
                         st.rerun()
                     else: st.error("Access Denied")
-        
         st.markdown("<div style='text-align: center; font-size: 10px; color: #ccc; margin-top: 15px;'>© 2026 Expo City Dubai</div>", unsafe_allow_html=True)
 
 # ==========================================
@@ -305,10 +272,8 @@ def main():
     
     inject_custom_css(login_mode=False)
     
-    # --- SIDEBAR HEADER ---
     try: st.sidebar.image("logo.png", width=150)
     except: pass
-
     st.sidebar.markdown(f"**User:** {st.session_state['username']}")
     st.sidebar.caption(f"Role: {st.session_state['user_role']}")
     
@@ -322,30 +287,21 @@ def main():
     df = st.session_state['inventory_df']
     sheet = get_inventory_sheet() 
 
-    # ==========================
-    # TECHNICIAN NAVIGATION (SIDEBAR)
-    # ==========================
     if st.session_state['user_role'] == "Technician":
-        # Force default page if needed
         if st.session_state['current_page'] not in ["Collect", "Return", "My Inventory", "Add Item", "Edit Details", "Bulk Import"]:
             st.session_state['current_page'] = "Collect"
-
         if st.sidebar.button("🚀 Issue Asset"): st.session_state['current_page'] = "Collect"; st.rerun()
         if st.sidebar.button("📥 Return Asset"): st.session_state['current_page'] = "Return"; st.rerun()
         if st.sidebar.button("🎒 My Inventory"): st.session_state['current_page'] = "My Inventory"; st.rerun()
         st.sidebar.divider()
         if st.sidebar.button("➕ Add Item"): st.session_state['current_page'] = "Add Item"; st.rerun()
         if st.sidebar.button("✏️ Edit Details"): st.session_state['current_page'] = "Edit Details"; st.rerun()
-        
         if st.session_state['can_import']:
              if st.sidebar.button("⚡ Bulk Import"): st.session_state['current_page'] = "Bulk Import"; st.rerun()
-
         st.sidebar.divider()
         if st.sidebar.button("🚪 Logout", type="primary"): logout()
 
         menu = st.session_state['current_page']
-
-        # --- TECHNICIAN PAGES ---
         if menu == "Collect":
             st.title("🚀 Issue Asset")
             with st.container(border=True):
@@ -359,7 +315,6 @@ def main():
                             try: scan_val = decode(Image.open(cam))[0].data.decode("utf-8")
                             except: pass
                 if text_scan: scan_val = text_scan.strip()
-                
                 if scan_val:
                     match = df[df['Serial Number'].astype(str).str.strip().str.upper() == scan_val.upper()]
                     if not match.empty:
@@ -380,7 +335,6 @@ def main():
                                 st.success("Asset Issued!"); time.sleep(0.5); st.rerun()
                         else: st.warning(f"Item is {item['Status']}")
                     else: st.error("Serial Not Found")
-
         elif menu == "Return":
             st.title("📥 Return Asset")
             my = df[(df['Issued To']==st.session_state['username'])&(df['Status']=='Issued')]
@@ -404,12 +358,10 @@ def main():
                             df.at[match_idx, 'Location'] = loc
                             st.session_state['inventory_df'] = df
                             st.success("Returned!"); time.sleep(0.5); st.rerun()
-
         elif menu == "My Inventory":
             st.title("🎒 My Items")
             my = df[(df['Issued To']==st.session_state['username'])&(df['Status']=='Issued')]
             st.dataframe(my[['Asset Type', 'Model', 'Serial Number', 'MAC Address', 'Ticket_Number', 'Location']], use_container_width=True)
-
         elif menu == "Add Item":
             st.title("➕ Register Asset")
             with st.container(border=True):
@@ -426,7 +378,6 @@ def main():
                             row_data = [typ, man, mod, sn, mac, stat, "", "", loc, "", get_timestamp(), f"Add: {st.session_state['username']}"]
                             sheet.append_row(row_data)
                             force_sync(); st.success("Added!"); st.rerun()
-
         elif menu == "Edit Details":
             st.title("✏️ Edit Asset")
             q = st.text_input("Search Serial")
@@ -453,13 +404,9 @@ def main():
                                 st.session_state['inventory_df'] = df
                                 st.success("Updated!"); time.sleep(0.5); st.rerun()
 
-    # ==========================
-    # ADMIN NAVIGATION (SIDEBAR)
-    # ==========================
     elif st.session_state['user_role'] == "Admin":
         if st.session_state['current_page'] not in ["Overview", "Asset Manager", "Team Manager", "Bulk Ops", "Database"]:
             st.session_state['current_page'] = "Overview"
-
         if st.sidebar.button("📊 Overview"): st.session_state['current_page'] = "Overview"; st.rerun()
         if st.sidebar.button("🛠️ Asset Manager"): st.session_state['current_page'] = "Asset Manager"; st.rerun()
         if st.sidebar.button("👥 Team Manager"): st.session_state['current_page'] = "Team Manager"; st.rerun()
@@ -469,7 +416,6 @@ def main():
         if st.sidebar.button("🚪 Logout", type="primary"): logout()
 
         menu = st.session_state['current_page']
-
         if menu == "Overview":
             st.title("📊 System Analytics")
             if not df.empty:
@@ -487,7 +433,6 @@ def main():
                 with c2:
                     fig2 = px.bar(df['Asset Type'].value_counts(), title="Inventory by Type")
                     st.plotly_chart(fig2, use_container_width=True)
-
         elif menu == "Asset Manager":
             st.title("🛠️ Asset Control")
             tab1, tab2 = st.tabs(["Add / Edit", "Delete"])
@@ -533,7 +478,6 @@ def main():
                     idx = df[df['Serial Number']==qd].index[0]+2
                     sheet.delete_rows(idx)
                     force_sync(); st.success("Deleted"); st.rerun()
-
         elif menu == "Team Manager":
             st.title("👥 User Management")
             us_sheet = get_users_sheet()
@@ -553,7 +497,6 @@ def main():
                     if st.button("Add"):
                         us_sheet.append_row([nu, npin, "Standard"])
                         st.success("Added"); st.rerun()
-
         elif menu == "Bulk Ops":
             st.title("⚡ Bulk Import")
             st.download_button("Template", get_template_excel(), "template.xlsx")
@@ -566,7 +509,6 @@ def main():
                         rows.append([r['Asset Type'], r['Manufacturer'], r['Model'], str(r['Serial Number']), 
                                      r.get('MAC Address',''), r.get('Status','Available/New'), "", "", r['Location'], "", get_timestamp(), "ADMIN BULK"])
                 if rows: sheet.append_rows(rows); force_sync(); st.success(f"Imported {len(rows)} items")
-
         elif menu == "Database":
             st.title("📦 Database")
             st.download_button("Export", to_excel(df), f"Inv_{get_date_str()}.xlsx")
