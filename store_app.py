@@ -15,107 +15,68 @@ import plotly.express as px
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide")
 
 # ==========================================
-# 2. DYNAMIC CSS (ATTRACTIVE UI)
+# 2. DYNAMIC CSS (Standard Desktop UI)
 # ==========================================
 def inject_custom_css(login_mode=False):
     if login_mode:
+        # --- LOGIN SCREEN CSS ---
         st.markdown("""
         <style>
-            /* 1. Background */
-            .stApp {
-                background-color: #f4f6f8;
-            }
+            /* Hide Sidebar & Header */
             [data-testid="stSidebar"] { display: none; }
             header { visibility: hidden; }
-
-            /* 2. Center Layout */
+            
+            /* Background */
+            .stApp {
+                background-color: #f4f6f9;
+            }
+            
+            /* Center the Login Card */
             .main .block-container {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                min-height: 90vh;
+                height: 90vh;
                 padding: 0 !important;
                 max-width: 100%;
             }
 
-            /* 3. The Login Card */
+            /* The Login Card Itself */
             div[data-testid="stVerticalBlockBorderWrapper"] {
                 background: white;
-                padding: 2rem 2.5rem;
-                border-radius: 12px;
-                box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+                padding: 40px;
+                border-radius: 10px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                 width: 100%;
-                max-width: 400px;
-                border: 1px solid #eef0f2;
-                border-top: 6px solid #cfaa5e; /* Expo Gold Accent */
+                max-width: 400px; 
+                border: 1px solid #e1e4e8;
+                border-top: 5px solid #cfaa5e; /* Expo Gold */
             }
 
-            /* 4. Tabs Styling (Technician vs Admin) */
-            .stTabs [data-baseweb="tab-list"] {
-                justify-content: center;
-                margin-bottom: 1rem;
-                border-bottom: 1px solid #eee;
-            }
-            .stTabs [data-baseweb="tab"] {
-                height: 3rem;
-                white-space: pre-wrap;
-                background-color: transparent;
-                border-radius: 4px;
-                color: #6b7280;
-                font-weight: 500;
-                flex: 1; /* Equal width */
-            }
-            .stTabs [aria-selected="true"] {
-                background-color: #f9fafb;
-                color: #cfaa5e; /* Gold Text for Active */
-                border-bottom: 2px solid #cfaa5e;
-            }
-
-            /* 5. Inputs */
-            .stTextInput label, .stSelectbox label {
-                font-size: 0.8rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                color: #374151;
-                font-weight: 600;
-            }
-            .stTextInput input, .stSelectbox div[data-baseweb="select"] {
-                background-color: #f9fafb;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                min-height: 42px;
-            }
-            
-            /* 6. Buttons */
-            .stButton button {
-                width: 100%;
-                background-color: #111827; /* Dark */
-                color: white;
-                border-radius: 6px;
-                font-weight: 600;
-                height: 45px;
-                border: none;
-                transition: background 0.2s;
-            }
-            .stButton button:hover {
-                background-color: #000;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            }
-
-            /* 7. Typography */
-            h1, h2, h3 { text-align: center; font-family: 'Inter', sans-serif; }
-            .login-header { text-align: center; margin-bottom: 20px; }
-            .login-header h3 { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0; }
-            .login-header p { font-size: 0.875rem; color: #6b7280; margin-top: 5px; }
-
-            /* 8. Logo */
+            /* Logo Centering */
             div[data-testid="stImage"] {
                 display: flex;
                 justify-content: center;
-                margin-bottom: 1rem;
+                margin-bottom: 20px;
             }
             
+            /* Buttons */
+            .stButton>button {
+                width: 100%;
+                border-radius: 5px;
+                height: 45px;
+                font-weight: 600;
+                background-color: #111; 
+                color: white;
+                border: none;
+                transition: 0.3s;
+            }
+            .stButton>button:hover {
+                background-color: #333;
+            }
+            
+            /* Remove Streamlit footer */
             footer { display: none; }
         </style>
         """, unsafe_allow_html=True)
@@ -123,20 +84,23 @@ def inject_custom_css(login_mode=False):
         # --- DASHBOARD CSS ---
         st.markdown("""
         <style>
-            .stApp { background-color: #f9fafb; }
-            section[data-testid="stSidebar"] { background-color: white; border-right: 1px solid #e5e7eb; }
+            .stApp { background-color: #f8f9fa; }
+            section[data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #eee; }
             
+            /* Cards */
             div[data-testid="stMetric"] { 
-                background-color: white; padding: 1.5rem; border-radius: 8px; 
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; 
+                background-color: #ffffff; padding: 20px; border-radius: 8px; 
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eee; 
             }
             
-            .stButton button { 
-                width: 100%; border-radius: 6px; background-color: white; 
-                color: #374151; border: 1px solid #d1d5db; font-weight: 500;
+            /* Navigation Buttons */
+            .stButton>button { 
+                border-radius: 5px; font-weight: 500; width: 100%; 
+                border: 1px solid #eee; background-color: white; color: #333; 
             }
-            .stButton button:hover { border-color: #cfaa5e; color: #cfaa5e; }
-            
+            .stButton>button:hover { 
+                border-color: #cfaa5e; color: #cfaa5e; background-color: #fff;
+            }
             button[kind="primary"] { background-color: #cfaa5e !important; color: white !important; border: none !important; }
         </style>
         """, unsafe_allow_html=True)
@@ -157,14 +121,18 @@ SHEET_NAME = "Store_Inventory_DB"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # ==========================================
-# 4. CONNECTION
+# 4. CONNECTION (UPDATED FOR CLOUD)
 # ==========================================
 @st.cache_resource
 def get_client():
     try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", SCOPE)
+        # Load from Streamlit Secrets (Correct method for Cloud)
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
         return gspread.authorize(creds)
-    except: st.error("❌ Key Error. Check service_account.json"); st.stop()
+    except Exception as e:
+        st.error(f"❌ Connection Error: {e}")
+        st.stop()
 
 def get_inventory_sheet():
     client = get_client()
@@ -184,7 +152,6 @@ def get_users_sheet():
 # ==========================================
 @st.cache_data(ttl=600)  
 def download_data():
-    """Reads data from Google Sheets (Cached for Speed)"""
     sheet = get_inventory_sheet()
     raw_data = sheet.get_all_values()
     if not raw_data: return pd.DataFrame()
@@ -231,8 +198,9 @@ def get_all_stores(df):
     if 'Location' in df.columns:
         db_vals = df['Location'].unique().tolist()
         for s in db_vals:
-            if str(s).strip() and str(s).upper() not in ["FAULTY", "USED", "NEW", "AVAILABLE", "ISSUED"]:
-                valid_stores.add(str(s).strip())
+            s_str = str(s).strip()
+            if s_str and s_str.lower() != 'nan' and s_str.upper() not in ["FAULTY", "USED", "NEW", "AVAILABLE", "ISSUED"]:
+                valid_stores.add(s_str)
     return sorted(list(valid_stores))
 
 # ==========================================
@@ -279,36 +247,24 @@ def login_screen():
     inject_custom_css(login_mode=True)
     
     with st.container(border=True):
-        # 1. LOGO
-        try: st.image("logo.png", width=140) 
+        try: st.image("logo.png", width=160) 
         except: st.markdown("<h1 style='text-align: center;'>🏢</h1>", unsafe_allow_html=True)
         
-        # 2. HEADER
-        st.markdown("""
-            <div class="login-header">
-                <h3>Welcome Back</h3>
-                <p>Please enter your details to sign in.</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>Welcome Back</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #666;'>Sign in to continue</p>", unsafe_allow_html=True)
 
-        # 3. TABS (Technician / Admin)
-        tab1, tab2 = st.tabs(["Technician", "Administrator"])
+        role_tab1, role_tab2 = st.tabs(["Technician", "Admin"])
         
-        # --- TECHNICIAN TAB ---
-        with tab1:
+        with role_tab1:
             try:
                 us = get_users_sheet(); data = us.get_all_records(); df = pd.DataFrame(data)
                 users_list = df['Username'].tolist() if not df.empty else []
             except: users_list = []
 
             with st.form("tech_login"):
-                u = st.selectbox("Select User", users_list, placeholder="Choose your name")
-                p = st.text_input("Access PIN", type="password", placeholder="••••")
-                st.write("") # Spacer
-                
-                # Custom "Remember Me" text
-                st.markdown("<p style='font-size: 11px; color: #888; text-align: right;'>Forgot PIN?</p>", unsafe_allow_html=True)
-                
+                u = st.selectbox("Username", users_list, placeholder="Select User")
+                p = st.text_input("PIN Code", type="password", placeholder="Enter PIN")
+                st.write("")
                 if st.form_submit_button("Sign In"):
                     if not df.empty:
                         row = df[df['Username']==u].iloc[0]
@@ -321,15 +277,12 @@ def login_screen():
                             save_session(u, "Technician", st.session_state['can_import'])
                             st.rerun()
                         else: st.error("Incorrect PIN")
-                    else: st.error("System Error: No users found")
+                    else: st.error("Database error")
 
-        # --- ADMIN TAB ---
-        with tab2:
+        with role_tab2:
             with st.form("admin_login"):
                 pwd = st.text_input("Password", type="password", placeholder="Admin Password")
-                st.write("") # Spacer
-                st.markdown("<p style='font-size: 11px; color: #888; text-align: right;'>Contact IT Support</p>", unsafe_allow_html=True)
-                
+                st.write("")
                 if st.form_submit_button("Authenticate"):
                     if pwd == ADMIN_PASSWORD:
                         st.session_state['logged_in'] = True; st.session_state['user_role'] = "Admin"
@@ -339,8 +292,7 @@ def login_screen():
                         save_session("Administrator", "Admin", True)
                         st.rerun()
                     else: st.error("Access Denied")
-
-        # 4. FOOTER
+        
         st.markdown("<div style='text-align: center; font-size: 10px; color: #ccc; margin-top: 15px;'>© 2026 Expo City Dubai</div>", unsafe_allow_html=True)
 
 # ==========================================
@@ -353,7 +305,7 @@ def main():
     
     inject_custom_css(login_mode=False)
     
-    # --- BRANDED SIDEBAR ---
+    # --- SIDEBAR HEADER ---
     try: st.sidebar.image("logo.png", width=150)
     except: pass
 
@@ -370,24 +322,30 @@ def main():
     df = st.session_state['inventory_df']
     sheet = get_inventory_sheet() 
 
-    # --- TECHNICIAN MENU ---
+    # ==========================
+    # TECHNICIAN NAVIGATION (SIDEBAR)
+    # ==========================
     if st.session_state['user_role'] == "Technician":
+        # Force default page if needed
         if st.session_state['current_page'] not in ["Collect", "Return", "My Inventory", "Add Item", "Edit Details", "Bulk Import"]:
             st.session_state['current_page'] = "Collect"
 
-        if st.sidebar.button("🚀 Collect"): st.session_state['current_page'] = "Collect"; st.rerun()
-        if st.sidebar.button("📥 Return"): st.session_state['current_page'] = "Return"; st.rerun()
+        if st.sidebar.button("🚀 Issue Asset"): st.session_state['current_page'] = "Collect"; st.rerun()
+        if st.sidebar.button("📥 Return Asset"): st.session_state['current_page'] = "Return"; st.rerun()
         if st.sidebar.button("🎒 My Inventory"): st.session_state['current_page'] = "My Inventory"; st.rerun()
         st.sidebar.divider()
         if st.sidebar.button("➕ Add Item"): st.session_state['current_page'] = "Add Item"; st.rerun()
         if st.sidebar.button("✏️ Edit Details"): st.session_state['current_page'] = "Edit Details"; st.rerun()
+        
         if st.session_state['can_import']:
              if st.sidebar.button("⚡ Bulk Import"): st.session_state['current_page'] = "Bulk Import"; st.rerun()
+
         st.sidebar.divider()
         if st.sidebar.button("🚪 Logout", type="primary"): logout()
 
         menu = st.session_state['current_page']
 
+        # --- TECHNICIAN PAGES ---
         if menu == "Collect":
             st.title("🚀 Issue Asset")
             with st.container(border=True):
@@ -401,6 +359,7 @@ def main():
                             try: scan_val = decode(Image.open(cam))[0].data.decode("utf-8")
                             except: pass
                 if text_scan: scan_val = text_scan.strip()
+                
                 if scan_val:
                     match = df[df['Serial Number'].astype(str).str.strip().str.upper() == scan_val.upper()]
                     if not match.empty:
@@ -418,9 +377,9 @@ def main():
                                 df.at[match_idx, 'Issued To'] = st.session_state['username']
                                 df.at[match_idx, 'Ticket_Number'] = ticket
                                 st.session_state['inventory_df'] = df 
-                                st.success("Issued!"); time.sleep(0.5); st.rerun()
+                                st.success("Asset Issued!"); time.sleep(0.5); st.rerun()
                         else: st.warning(f"Item is {item['Status']}")
-                    else: st.error("Not Found")
+                    else: st.error("Serial Not Found")
 
         elif menu == "Return":
             st.title("📥 Return Asset")
@@ -494,7 +453,9 @@ def main():
                                 st.session_state['inventory_df'] = df
                                 st.success("Updated!"); time.sleep(0.5); st.rerun()
 
-    # --- ADMIN MENU ---
+    # ==========================
+    # ADMIN NAVIGATION (SIDEBAR)
+    # ==========================
     elif st.session_state['user_role'] == "Admin":
         if st.session_state['current_page'] not in ["Overview", "Asset Manager", "Team Manager", "Bulk Ops", "Database"]:
             st.session_state['current_page'] = "Overview"
