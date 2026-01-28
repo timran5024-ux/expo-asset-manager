@@ -7,7 +7,6 @@ import time
 from PIL import Image
 from io import BytesIO
 import plotly.express as px
-from pyzbar.pyzbar import decode if st.runtime.exists() else None
 
 # ==========================================
 # 1. PAGE CONFIG
