@@ -15,34 +15,11 @@ st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wi
 
 st.markdown("""
 <style>
-    /* Professional UI Theme */
     .stApp {background-color: #f4f6f9;}
-    
-    /* Login & Forms */
-    div[data-testid="stForm"] {
-        background: #ffffff;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        border-top: 5px solid #cfaa5e;
-    }
-    
-    /* Buttons */
-    .stButton>button {
-        width: 100%;
-        border-radius: 6px;
-        height: 45px;
-        font-weight: 600;
-    }
-    
-    /* Admin Controls */
-    .admin-box {
-        padding: 15px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background-color: white;
-        margin-bottom: 10px;
-    }
+    div[data-testid="stForm"] {background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border-top: 5px solid #cfaa5e;}
+    .stButton>button {width: 100%; border-radius: 6px; height: 45px; font-weight: 600;}
+    .success-box {padding:10px; background:#d4edda; color:#155724; border-radius:5px;}
+    .warning-box {padding:10px; background:#fff3cd; color:#856404; border-radius:5px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -265,8 +242,8 @@ else:
                 typ = c1.selectbox("Type", ["Camera", "Reader", "Controller", "Lock"])
                 man = c1.text_input("Make"); mod = c2.text_input("Model")
                 sn = c2.text_input("Serial"); mac = c1.text_input("MAC")
-                loc = c2.selectbox("Loc", get_all_stores(df))
-                stat = st.selectbox("Stat", ["Available/New", "Available/Used"])
+                loc = c2.selectbox("Location", get_all_stores(df))
+                stat = st.selectbox("Status", ["Available/New", "Available/Used"])
                 if st.form_submit_button("Save"):
                     if sn not in df['Serial Number'].astype(str).tolist():
                         ws_inv.append_row([typ, man, mod, sn, mac, stat, "", "", loc, "", get_timestamp(), st.session_state['user']])
@@ -288,7 +265,7 @@ else:
             else: st.error("Denied")
 
     # ==========================
-    # ADMIN DASHBOARD (UPDATED)
+    # ADMIN DASHBOARD
     # ==========================
     elif st.session_state['role'] == "Admin":
         st.title("📊 Admin Control Panel")
@@ -316,50 +293,89 @@ else:
                         if st.form_submit_button("Add"): ws_u.append_row([u, p, perm]); st.success("Added"); st.rerun()
                 
                 with c2:
-                    st.markdown("##### ❌ Delete / Edit User")
-                    target_u = st.selectbox("Select User to Modify", users_df['Username'].tolist() if not users_df.empty else [])
+                    st.markdown("##### ❌ Delete / Edit")
+                    target_u = st.selectbox("Select User", users_df['Username'].tolist() if not users_df.empty else [])
                     if target_u:
                         with st.form("mod_u"):
-                            new_p = st.text_input("New PIN (Leave empty to keep)", type="password")
+                            new_p = st.text_input("New PIN (Leave blank to keep)", type="password")
                             if st.form_submit_button("Update PIN"):
                                 cell = ws_u.find(target_u)
                                 ws_u.update_cell(cell.row, 2, new_p)
                                 st.success("PIN Updated"); st.rerun()
-                        
-                        if st.button("🗑️ Delete Selected User"):
+                        if st.button("🗑️ Delete User"):
                             cell = ws_u.find(target_u)
                             ws_u.delete_rows(cell.row)
-                            st.success("User Deleted"); st.rerun()
+                            st.success("Deleted"); st.rerun()
 
         elif nav == "Master Asset Control":
             st.subheader("🛠️ Master Asset Control")
-            st.info("Directly modify asset status or delete assets from the database.")
             
-            search_q = st.text_input("Search Asset by Serial Number")
-            if search_q:
-                match = df[df['Serial Number'].astype(str).str.contains(search_q, case=False)]
-                if not match.empty:
-                    sel_serial = st.selectbox("Select Asset", match['Serial Number'].tolist())
-                    item = df[df['Serial Number'] == sel_serial].iloc[0]
-                    idx = df[df['Serial Number'] == sel_serial].index[0] + 2
+            tab_add, tab_edit = st.tabs(["➕ Add Asset (Manual)", "✏️ Edit / Delete Asset"])
+            
+            # --- TAB 1: ADD ASSET (MATCHING YOUR PIC FORMAT) ---
+            with tab_add:
+                st.info("Manually add assets to the database.")
+                with st.form("admin_add_asset"):
+                    c1, c2, c3 = st.columns(3)
+                    # Mapping to your Yellow Header Logic
+                    atype = c1.selectbox("Asset Type", ["Camera", "Reader", "Controller", "Lock", "Accessory", "Switch", "Server"])
+                    brand = c2.text_input("Brand (Manufacturer)")
+                    model = c3.text_input("Model")
                     
-                    st.write(f"**Selected:** {item['Model']} (Current: {item['Status']})")
+                    c4, c5, c6 = st.columns(3)
+                    serial = c4.text_input("Serial Number")
+                    mac = c5.text_input("MAC Address")
+                    cond = c6.selectbox("Condition", ["Available/New", "Available/Used", "Issued", "Faulty"])
                     
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        with st.form("mod_asset"):
-                            n_stat = st.selectbox("Change Status To", ["Available/New", "Available/Used", "Issued", "Faulty", "Hold"])
-                            n_loc = st.text_input("Update Location", item['Location'])
-                            if st.form_submit_button("Update Asset"):
-                                ws_inv.update_cell(idx, 6, n_stat)
-                                ws_inv.update_cell(idx, 9, n_loc)
-                                force_sync(); st.success("Updated!"); st.rerun()
+                    c7, c8 = st.columns(2)
+                    loc = c7.selectbox("Location", get_all_stores(df))
+                    qty = c8.number_input("Quantity", min_value=1, value=1)
                     
-                    with c2:
-                        st.write("### ⚠️ Danger Zone")
-                        if st.button("🗑️ DELETE ASSET PERMANENTLY"):
-                            ws_inv.delete_rows(idx)
-                            force_sync(); st.success("Deleted!"); st.rerun()
+                    if st.form_submit_button("💾 Add to Database"):
+                        if not serial and qty == 1:
+                            st.error("Serial Number is required for single items.")
+                        elif serial in df['Serial Number'].astype(str).tolist():
+                            st.error("Duplicate Serial Number.")
+                        else:
+                            # If Qty > 1, auto-generate rows, otherwise just 1
+                            timestamp = get_timestamp()
+                            rows_to_add = []
+                            for i in range(qty):
+                                s_final = serial if qty == 1 else f"{serial}-{i+1}"
+                                # Schema: [Type, Brand, Model, Serial, MAC, Condition, "", "", Location, "", Time, "ADMIN"]
+                                rows_to_add.append([atype, brand, model, s_final, mac, cond, "", "", loc, "", timestamp, "ADMIN"])
+                            
+                            ws_inv.append_rows(rows_to_add)
+                            force_sync()
+                            st.success(f"Successfully added {qty} asset(s)!")
+
+            # --- TAB 2: EDIT / DELETE ---
+            with tab_edit:
+                search_q = st.text_input("Search Asset by Serial")
+                if search_q:
+                    match = df[df['Serial Number'].astype(str).str.contains(search_q, case=False)]
+                    if not match.empty:
+                        sel_serial = st.selectbox("Select Asset to Modify", match['Serial Number'].tolist())
+                        item = df[df['Serial Number'] == sel_serial].iloc[0]
+                        idx = df[df['Serial Number'] == sel_serial].index[0] + 2
+                        
+                        st.write(f"**Found:** {item['Model']} | {item['Status']}")
+                        
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            with st.form("mod_asset"):
+                                n_stat = st.selectbox("Change Status", ["Available/New", "Available/Used", "Issued", "Faulty", "Hold"])
+                                n_loc = st.text_input("Update Location", item['Location'])
+                                if st.form_submit_button("Update Details"):
+                                    ws_inv.update_cell(idx, 6, n_stat)
+                                    ws_inv.update_cell(idx, 9, n_loc)
+                                    force_sync(); st.success("Updated!"); st.rerun()
+                        
+                        with c2:
+                            st.write("### ⚠️ Danger Zone")
+                            if st.button("🗑️ DELETE PERMANENTLY"):
+                                ws_inv.delete_rows(idx)
+                                force_sync(); st.success("Deleted!"); st.rerun()
 
         elif nav == "Database":
             st.subheader("📦 Database View")
