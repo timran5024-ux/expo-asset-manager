@@ -11,7 +11,7 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. EXECUTIVE SECURITY THEME (V167)
+# 1. EXECUTIVE SECURITY THEME (V168)
 # ==========================================
 st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="expanded")
 
@@ -74,12 +74,14 @@ st.markdown(f"""
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
-SESSION_SECRET = "expo_final_v167_hardware"
+SESSION_SECRET = "expo_final_v168_fixed"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # ==========================================
-# 2. CORE ENGINE
+# 2. CORE UTILITIES
 # ==========================================
+def make_token(u): return hashlib.sha256(f"{u}{SESSION_SECRET}".encode()).hexdigest()
+
 @st.cache_resource
 def get_client():
     creds_dict = dict(st.secrets["gcp_service_account"])
@@ -93,31 +95,49 @@ def get_ws(name):
 
 def load_data():
     ws = get_ws("Sheet1")
+    if not ws: return pd.DataFrame()
     vals = ws.get_all_values()
     return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
 
 # ==========================================
-# 3. INTERFACE & NAVIGATION
+# 3. INTERFACE LOGIC
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    # Standard Login logic...
-    st.rerun()
+    st.markdown('<br><br>', unsafe_allow_html=True)
+    c1, mid, c3 = st.columns([1, 1.4, 1])
+    with mid:
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        if os.path.exists("logo.png"): st.image("logo.png", width=120)
+        mode = st.radio("LOGIN", ["Technician", "Admin"], horizontal=True)
+        with st.form("login_form"):
+            u = st.text_input("Username") if mode == "Technician" else "Administrator"
+            p = st.text_input("Password", type="password")
+            if st.form_submit_button("SIGN IN"):
+                if mode == "Admin" and p == ADMIN_PASSWORD:
+                    st.session_state.update(logged_in=True, user="Administrator", role="Admin")
+                    st.rerun()
+                elif mode == "Technician":
+                    ws_u = get_ws("Users")
+                    if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
+                        st.session_state.update(logged_in=True, user=u, role="Technician")
+                        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 else:
     df = load_data()
     
     with st.sidebar:
         if os.path.exists("logo.png"): st.image("logo.png", width=140)
-        st.markdown(f"**{st.session_state['user']}**")
+        st.write(f"USER: **{st.session_state['user']}**")
         st.divider()
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ISSUE ASSET", "REGISTER ASSET"]
         nav = st.radio("Menu", menu)
-        if st.button("Logout System", use_container_width=True): st.session_state.clear(); st.rerun()
+        if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
     if nav == "DASHBOARD":
-        # HARDWARE COUNT LOGIC
+        # SECURITY HARDWARE LOGIC
         types = df['ASSET TYPE'].str.upper() if not df.empty else pd.Series()
         c_cam = len(df[types.str.contains('CAMERA', na=False)])
         c_rdr = len(df[types.str.contains('READER', na=False)])
@@ -130,7 +150,7 @@ else:
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Hardware Summary</p>
+                <p class="metric-title">Security Inventory Summary</p>
                 <p class="hw-count">📹 Cameras: {c_cam}</p>
                 <p class="hw-count">💳 Card Readers: {c_rdr}</p>
                 <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
@@ -139,18 +159,24 @@ else:
         with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
         with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
-        # PIE CHART WITH EXACT COLOR MAPPING
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        st.markdown("### Global Condition Breakdown")
-        clr_map = {{
-            "Available/New": "#28A745", # Green
-            "Available/Used": "#FFD700", # Yellow
-            "Faulty": "#DC3545", # Red
-            "Issued": "#6C757D" # Grey
-        }}
+        st.markdown("### Global Inventory Condition Breakdown")
+        clr_map = {
+            "Available/New": "#28A745", 
+            "Available/Used": "#FFD700", 
+            "Faulty": "#DC3545", 
+            "Issued": "#6C757D"
+        }
         fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
         fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True, key="v167_security_pie")
+        st.plotly_chart(fig, use_container_width=True, key="pie_v168")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif nav == "DATABASE":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        q = st.text_input("🔍 Search Database (Keyword, SN, MAC, Brand)")
+        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
+        st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "USER MANAGER":
@@ -161,8 +187,8 @@ else:
         u1, u2 = st.columns(2)
         with u1:
             with st.form("u_new"):
-                un, up = st.text_input("New Technician"), st.text_input("PIN")
-                if st.form_submit_button("CREATE ACCOUNT"):
+                un, up = st.text_input("Technician Name"), st.text_input("PIN")
+                if st.form_submit_button("CREATE USER"):
                     ws_u.append_row([un, up, "Standard"])
                     st.success("Account Created"); st.rerun()
         with u2:
