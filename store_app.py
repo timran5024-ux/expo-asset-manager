@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
@@ -10,21 +9,19 @@ import plotly.express as px
 from PIL import Image
 
 # ==========================================
-# 1. PAGE CONFIG
+# 1. PAGE SETUP
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide")
 
-# CSS
 st.markdown("""
 <style>
     div[data-testid="stForm"] {background: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #cfaa5e;}
-    .stButton>button {width: 100%; border-radius: 5px; font-weight: 600;}
+    .online {color: #155724; background-color: #d4edda; padding: 5px; border-radius: 5px;}
+    .offline {color: #721c24; background-color: #f8d7da; padding: 5px; border-radius: 5px;}
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. CONSTANTS
-# ==========================================
+# CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
@@ -37,32 +34,33 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 3. CONNECTION (JSON METHOD)
+# 2. CONNECTION HANDLER (STANDARD)
 # ==========================================
 @st.cache_resource
 def get_client():
     try:
-        # METHOD: RAW JSON STRING
-        # We look for the variable 'service_account_json' in secrets
-        if "service_account_json" in st.secrets:
-            # Parse the JSON string directly
-            creds_dict = json.loads(st.secrets["service_account_json"])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
-            client = gspread.authorize(creds)
-            return client, "Online"
-        
-        # Fallback to old method (just in case)
-        elif "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            if "private_key" in creds_dict:
-                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip('"')
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
-            client = gspread.authorize(creds)
-            return client, "Online"
-
-        else:
+        # Check if secrets exist
+        if "gcp_service_account" not in st.secrets:
             return None, "Secrets Missing"
 
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        
+        # 🔧 KEY REPAIR: Handle Newlines
+        if "private_key" in creds_dict:
+            key = creds_dict["private_key"]
+            # If the key has literal "\n" characters, convert them to real newlines
+            if "\\n" in key:
+                key = key.replace("\\n", "\n")
+            creds_dict["private_key"] = key
+
+        # Connect
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+        client = gspread.authorize(creds)
+        
+        # Verify
+        client.open_by_key(SHEET_ID)
+        return client, "Online"
+            
     except Exception as e:
         return None, str(e)
 
@@ -71,8 +69,7 @@ def get_sheet_data(worksheet_name):
     if not client: return None
     try:
         sh = client.open_by_key(SHEET_ID)
-        try:
-            return sh.worksheet(worksheet_name)
+        try: return sh.worksheet(worksheet_name)
         except:
             if worksheet_name == "Users":
                 ws = sh.add_worksheet(title="Users", rows="100", cols="3")
@@ -82,7 +79,7 @@ def get_sheet_data(worksheet_name):
     except: return None
 
 # ==========================================
-# 4. DATA FUNCTIONS
+# 3. DATA LOADER
 # ==========================================
 def download_data():
     ws = get_sheet_data("Sheet1")
@@ -103,12 +100,6 @@ def force_sync():
 
 def get_timestamp(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Inventory')
-    return output.getvalue()
-
 def get_all_stores(df):
     if df.empty: return FIXED_STORES
     valid_stores = set(FIXED_STORES)
@@ -120,25 +111,31 @@ def get_all_stores(df):
                 valid_stores.add(s_str)
     return sorted(list(valid_stores))
 
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Inventory')
+    return output.getvalue()
+
 # ==========================================
-# 5. LOGIN SCREEN
+# 4. LOGIN SCREEN
 # ==========================================
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
 def login_screen():
     client, status = get_client()
-    
     st.markdown("<h1 style='text-align: center;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
     
+    # Status Badge
     if "Online" in status:
-        st.success("🟢 System Online")
+        st.markdown(f"<div style='text-align:center'><span class='online'>🟢 System Online</span></div><br>", unsafe_allow_html=True)
     else:
-        st.error(f"🔴 System Offline: {status}")
+        st.markdown(f"<div style='text-align:center'><span class='offline'>🔴 {status}</span></div><br>", unsafe_allow_html=True)
 
     t1, t2 = st.tabs(["Technician", "Admin"])
 
     with t1:
-        st.write("### Technician Access")
+        st.write("### Technician Login")
         users_df = pd.DataFrame(); user_list = []
         try:
             ws = get_sheet_data("Users")
@@ -147,7 +144,7 @@ def login_screen():
                 if not users_df.empty: user_list = users_df['Username'].tolist()
         except: pass
         
-        with st.form("tech_login"):
+        with st.form("tech"):
             if user_list:
                 u = st.selectbox("Username", user_list)
                 p = st.text_input("PIN", type="password")
@@ -162,30 +159,35 @@ def login_screen():
                         st.rerun()
                     else: st.error("Wrong PIN")
             else:
-                st.warning("Users not loaded.")
+                st.info("No technicians found in database.")
                 st.form_submit_button("Sign In", disabled=True)
 
     with t2:
-        st.write("### Admin Access")
+        st.write("### Admin Login")
         with st.form("admin"):
             p = st.text_input("Password", type="password")
-            if st.form_submit_button("Login"):
+            if st.form_submit_button("Authenticate"):
                 if p == ADMIN_PASSWORD:
                     st.session_state['logged_in'] = True
                     st.session_state['role'] = "Admin"
                     st.session_state['user'] = "Administrator"
                     st.session_state['can_import'] = True
                     st.rerun()
-                else: st.error("Wrong Password")
+                else: st.error("Access Denied")
 
 # ==========================================
-# 6. MAIN APP
+# 5. MAIN APP
 # ==========================================
 if not st.session_state['logged_in']:
     login_screen()
 else:
     st.sidebar.title(f"👤 {st.session_state['user']}")
     st.sidebar.caption(f"Role: {st.session_state['role']}")
+    
+    # Live Status Check
+    client, status = get_client()
+    if "Online" in status: st.sidebar.success("🟢 Online")
+    else: st.sidebar.error("🔴 Connection Lost")
     
     if st.sidebar.button("🔄 Sync"): force_sync(); st.rerun()
     if st.sidebar.button("Logout"): st.session_state['logged_in'] = False; st.rerun()
@@ -274,7 +276,7 @@ else:
         elif nav == "Bulk Import":
             st.title("⚡ Bulk")
             if st.session_state.get('can_import'):
-                up = st.file_uploader("Upload", type=['xlsx'])
+                up = st.file_uploader("Upload .xlsx", type=['xlsx'])
                 if up and st.button("Import"):
                     if ws_inv:
                         d = pd.read_excel(up).fillna("")
