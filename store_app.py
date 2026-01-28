@@ -91,7 +91,6 @@ def load_data():
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = ''
-        df = df[expected_columns]
         return df
     else:
         return pd.DataFrame(columns=expected_columns)
