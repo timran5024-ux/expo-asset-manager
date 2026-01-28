@@ -14,10 +14,9 @@ import plotly.express as px
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
 # ==========================================
-# 2. DYNAMIC CSS (NUCLEAR CLEAN MODE)
+# 2. DYNAMIC CSS (CLEAN MODE)
 # ==========================================
 def inject_custom_css(login_mode=False):
-    # CSS: Hides Streamlit UI elements
     st.markdown("""
         <style>
             #MainMenu {visibility: hidden !important; display: none !important;}
@@ -76,7 +75,7 @@ CAMERA_AVAILABLE = False
 try:
     from pyzbar.pyzbar import decode
     CAMERA_AVAILABLE = True
-except:
+except ImportError:
     CAMERA_AVAILABLE = False
 
 ADMIN_PASSWORD = "admin123"
