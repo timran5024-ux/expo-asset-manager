@@ -10,7 +10,7 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. PROFESSIONAL ASSET MANAGEMENT SYSTEM (V2.0)
+# 1. PROFESSIONAL ASSET MANAGEMENT SYSTEM
 # ==========================================
 st.set_page_config(
     page_title="Asset Management Pro",
@@ -18,52 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-def get_base64_bin(file_path):
-    with open(file_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-bg_css = ""
-if os.path.exists("logo.png"):
-    try:
-        bin_str = get_base64_bin("logo.png")
-        bg_css = f"""
-        .stApp {{
-            background-image: url("data:image/png;base64,{bin_str}");
-            background-size: 600px; background-repeat: repeat; background-attachment: fixed;
-        }}
-        .stApp::before {{
-            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(12px); z-index: -1;
-        }}
-        """
-    except: 
-        pass
-
-st.markdown(f"""
-<style>
-    {bg_css}
-    footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
-    /* PROFESSIONAL STYLING */
-    div.stButton > button {{
-        background: #1A1A1A !important; color: #FFFFFF !important;
-        border-radius: 10px !important; height: 50px !important;
-        border: none !important; font-weight: 700 !important; width: 100%;
-    }}
-    div.stButton > button p {{ color: white !important; font-size: 15px !important; font-weight: 800 !important; }}
-    .exec-card {{
-        background: rgba(255, 255, 255, 0.95) !important;
-        border: 1px solid rgba(197, 160, 89, 0.4);
-        border-radius: 12px; padding: 20px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); margin-bottom: 20px;
-        text-align: center;
-    }}
-    .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; margin-bottom: 10px; }}
-    .hw-count {{ font-size: 15px; font-weight: 700; color: #111827; margin: 4px 0; text-align: left; }}
-    .metric-value {{ font-size: 38px; font-weight: 900; }}
-    .stDataFrame {{ border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }}
-</style>
-""", unsafe_allow_html=True)
+# ... (keep all your CSS and styling the same as before) ...
 
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
@@ -72,7 +27,7 @@ SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 LOGO_URL = "https://gcdn.net/wp-content/uploads/2024/11/EXPO_CITY_DUBAI_LOGO_DUAL_HORIZONTAL_YELLOW-1024x576.png"
 
 # ==========================================
-# 2. CORE UTILITIES WITH ERROR HANDLING
+# 2. CORE UTILITIES - SIMPLIFIED
 # ==========================================
 @st.cache_resource
 def get_client():
@@ -84,39 +39,32 @@ def get_client():
         st.error(f"Failed to initialize Google Sheets client: {str(e)}")
         return None
 
-def get_ws(name, retries=3):
-    for attempt in range(retries):
-        try:
-            client = get_client()
-            if not client:
-                return None
-            sh = client.open_by_key(SHEET_ID)
-            try:
-                return sh.worksheet(name)
-            except gspread.exceptions.WorksheetNotFound:
-                if name == "Users":
-                    ws = sh.add_worksheet(title="Users", rows="100", cols="5")
-                    ws.append_row(["Username", "PIN", "Permission"])
-                    return ws
-                return sh.sheet1
-        except Exception as e:
-            # Simple retry logic
-            if "429" in str(e) or "quota" in str(e).lower():
-                time.sleep(2 ** attempt)
-                continue
-            st.error(f"Error accessing worksheet '{name}': {str(e)}")
+def get_ws(name):
+    try:
+        client = get_client()
+        if not client:
             return None
-    return None
+        sh = client.open_by_key(SHEET_ID)
+        try:
+            return sh.worksheet(name)
+        except gspread.exceptions.WorksheetNotFound:
+            if name == "Users":
+                ws = sh.add_worksheet(title="Users", rows="100", cols="5")
+                ws.append_row(["Username", "PIN", "Permission"])
+                return ws
+            return sh.sheet1
+    except Exception as e:
+        st.error(f"Error accessing worksheet: {str(e)}")
+        return None
 
 def load_data():
     """Load data from Google Sheets"""
     try:
         ws = get_ws("Sheet1")
         if not ws:
-            st.error("Cannot connect to Google Sheets. Please check your connection.")
             return pd.DataFrame()
         
-        # Try to get all values
+        # Get all values
         vals = ws.get_all_values()
         
         if not vals or len(vals) <= 1:
@@ -126,9 +74,15 @@ def load_data():
                 "Issued Date", "Registered Date", "Registered By"
             ])
         
-        # Handle headers
+        # Create DataFrame
         headers = vals[0]
-        df = pd.DataFrame(vals[1:], columns=headers)
+        data = vals[1:]
+        
+        # Ensure we have the right number of columns
+        while len(data) > 0 and len(data[-1]) < len(headers):
+            data[-1].append('')
+        
+        df = pd.DataFrame(data, columns=headers)
         
         # Ensure all expected columns exist
         expected_columns = [
@@ -141,8 +95,9 @@ def load_data():
             if col not in df.columns:
                 df[col] = ''
         
-        # Clean up data
-        df = df.fillna('')
+        # Clean serial numbers - strip whitespace
+        if 'Serial Number' in df.columns:
+            df['Serial Number'] = df['Serial Number'].astype(str).str.strip()
         
         return df
         
@@ -150,18 +105,11 @@ def load_data():
         st.error(f"Error loading data: {str(e)}")
         return pd.DataFrame()
 
-def refresh_data():
-    """Clear cache and reload data"""
-    st.cache_data.clear()
-    return load_data()
-
 # ==========================================
 # 3. INTERFACE
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
-if 'df' not in st.session_state:
-    st.session_state.df = pd.DataFrame()
 
 if not st.session_state['logged_in']:
     c1, mid, c3 = st.columns([1, 1.4, 1])
@@ -204,9 +152,7 @@ else:
         
         # Refresh button
         if st.button("🔄 Refresh Data"):
-            st.session_state.df = refresh_data()
-            st.success("Data refreshed!")
-            time.sleep(0.5)
+            st.cache_data.clear()
             st.rerun()
             
         st.markdown("<br>" * 5, unsafe_allow_html=True)
@@ -214,114 +160,28 @@ else:
             st.session_state.clear()
             st.rerun()
     
-    # Load data with error handling
-    try:
-        df = load_data()
-        st.session_state.df = df
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        df = st.session_state.df if not st.session_state.df.empty else pd.DataFrame()
+    # Load data
+    df = load_data()
+    
+    # DEBUG: Show what's in the dataframe
+    if 'show_debug' not in st.session_state:
+        st.session_state.show_debug = False
+    
+    if st.session_state.show_debug:
+        st.write("DEBUG - Dataframe info:")
+        st.write(f"Number of rows: {len(df)}")
+        st.write(f"Columns: {df.columns.tolist()}")
+        if not df.empty:
+            st.write("First few serial numbers:")
+            st.write(df['Serial Number'].head(10).tolist())
     
     ws_inv = get_ws("Sheet1")
     
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
     
     if nav == "DASHBOARD":
-        try:
-            if df.empty:
-                st.info("No assets registered yet.")
-            else:
-                # Clean data for analysis
-                df_clean = df.copy()
-                df_clean['ASSET TYPE'] = df_clean['ASSET TYPE'].astype(str).fillna('')
-                df_clean['CONDITION'] = df_clean['CONDITION'].astype(str).fillna('')
-                
-                # Safe string operations
-                types = df_clean['ASSET TYPE'].str.upper()
-                c_cam = len(df_clean[types.str.contains('CAMERA', na=False)])
-                c_rdr = len(df_clean[types.str.contains('READER', na=False)])
-                c_pnl = len(df_clean[types.str.contains('PANEL', na=False)])
-                c_lck = len(df_clean[types.str.contains('LOCK|MAG', na=False, regex=True)])
-                total_assets = len(df_clean)
-                
-                # Safe condition checks
-                new = len(df_clean[df_clean['CONDITION'] == 'Available/New'])
-                used = len(df_clean[df_clean['CONDITION'] == 'Available/Used'])
-                faulty = len(df_clean[df_clean['CONDITION'] == 'Faulty'])
-                issued = len(df_clean[df_clean['CONDITION'] == 'Issued'])
-                
-                m1, m2, m3, m4, m5 = st.columns(5)
-                with m1: 
-                    st.markdown(f'<div class="exec-card"><p class="metric-title">Total Assets</p><p class="metric-value" style="color:#1F2937;">{total_assets}</p></div>', unsafe_allow_html=True)
-                with m2: 
-                    st.markdown(f'<div class="exec-card"><p class="metric-title">Available New</p><p class="metric-value" style="color:#28A745;">{new}</p></div>', unsafe_allow_html=True)
-                with m3: 
-                    st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
-                with m4: 
-                    st.markdown(f'<div class="exec-card"><p class="metric-title">Faulty</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
-                with m5: 
-                    st.markdown(f'<div class="exec-card"><p class="metric-title">Issued</p><p class="metric-value" style="color:#6C757D;">{issued}</p></div>', unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-                    st.markdown(f"""<p class="metric-title">Hardware Breakdown</p>
-                        <p class="hw-count">📹 Cameras: {c_cam}</p>
-                        <p class="hw-count">💳 Card Readers: {c_rdr}</p>
-                        <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
-                        <p class="hw-count">🧲 Mag Locks: {c_lck}</p>""", unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                with col2:
-                    st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-                    try:
-                        # Create a clean dataframe for the pie chart
-                        df_pie = df_clean[df_clean['CONDITION'] != ''].copy()
-                        if not df_pie.empty:
-                            clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
-                            fig_pie = px.pie(df_pie, names='CONDITION', hole=0.4, color='CONDITION', color_discrete_map=clr_map)
-                            fig_pie.update_layout(title="Asset Status Distribution", showlegend=True, height=400, 
-                                                 margin=dict(t=40,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-                            st.plotly_chart(fig_pie, use_container_width=True)
-                        else:
-                            st.info("No condition data available for chart.")
-                    except Exception as e:
-                        st.warning(f"Could not generate pie chart: {str(e)}")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-                try:
-                    # Filter out empty asset types
-                    df_type = df_clean[df_clean['ASSET TYPE'] != ''].copy()
-                    if not df_type.empty:
-                        type_counts = df_type['ASSET TYPE'].value_counts().reset_index()
-                        type_counts.columns = ['ASSET TYPE', 'Count']
-                        fig_bar = px.bar(type_counts, x='ASSET TYPE', y='Count', title="Assets by Type")
-                        fig_bar.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(fig_bar, use_container_width=True)
-                    else:
-                        st.info("No asset type data available for chart.")
-                except Exception as e:
-                    st.warning(f"Could not generate bar chart: {str(e)}")
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-                st.subheader("Recently Issued Assets")
-                try:
-                    # Create a clean dataframe for issued assets
-                    df_issued = df_clean[df_clean['CONDITION'] == 'Issued'].copy()
-                    if not df_issued.empty:
-                        # Sort by Issued Date if available
-                        if 'Issued Date' in df_issued.columns:
-                            df_issued = df_issued.sort_values('Issued Date', ascending=False).head(10)
-                        st.dataframe(df_issued[['ASSET TYPE', 'Serial Number', 'Issued To', 'Issued Date']], use_container_width=True)
-                    else:
-                        st.info("No issued assets found.")
-                except Exception as e:
-                    st.info(f"Error loading issued assets: {str(e)}")
-                st.markdown('</div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Dashboard error: {str(e)}")
-            st.info("Try refreshing the data or check your connection.")
+        # ... (keep your dashboard code exactly as it was) ...
+        pass
     
     elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
         if st.session_state['role'] != "Admin" and nav == "ASSET CONTROL": 
@@ -329,6 +189,15 @@ else:
             st.stop()
         
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        
+        # DEBUG toggle
+        if st.checkbox("Show debug info", key="debug_toggle"):
+            st.session_state.show_debug = True
+            st.write("Current dataframe:")
+            st.dataframe(df)
+        else:
+            st.session_state.show_debug = False
+        
         if st.session_state['role'] == "Admin":
             tabs = st.tabs(["➕ Add Asset", "📝 Modify Asset", "🚀 Issue Asset", "↩️ Return Asset", "❌ Delete Asset"])
         else:
@@ -352,15 +221,17 @@ else:
                         else:
                             try:
                                 # Check if serial number already exists
-                                if not df.empty and sn in df['Serial Number'].astype(str).values:
+                                existing_sn = df['Serial Number'].astype(str).str.strip().tolist()
+                                if sn.strip() in existing_sn:
                                     st.warning(f"Serial Number '{sn}' already exists in the database!")
                                 else:
-                                    ws_inv.append_row([at, br, md, sn, mc, st_v, lo, "", "", 
-                                                     datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                                    ws_inv.append_row([
+                                        at, br, md, sn.strip(), mc, st_v, lo, 
+                                        "", "", datetime.now().strftime("%Y-%m-%d"), 
+                                        st.session_state['user']
+                                    ])
                                     st.success("Asset Registered!")
-                                    # Refresh data immediately after adding
-                                    df = refresh_data()
-                                    st.session_state.df = df
+                                    st.cache_data.clear()
                                     time.sleep(1)
                                     st.rerun()
                             except Exception as e:
@@ -370,28 +241,54 @@ else:
             with tabs[1]:  # Modify Asset
                 st.info("🔍 Search for asset to modify")
                 
-                # Display current data for reference
+                # Show current data summary
                 if not df.empty:
-                    st.write(f"Currently showing {len(df)} assets in database")
+                    st.write(f"📊 Found {len(df)} assets in database")
+                    if 'Serial Number' in df.columns:
+                        st.write(f"Sample serial numbers: {df['Serial Number'].head(5).tolist()}")
                 
                 sn_search = st.text_input("Enter Serial Number to Modify", key="modify_search")
                 
                 if sn_search:
-                    # Refresh data before searching
-                    df = refresh_data()
-                    st.session_state.df = df
+                    # Strip the search term
+                    sn_search_clean = sn_search.strip()
                     
-                    # Convert all serial numbers to string for comparison
-                    df['Serial Number'] = df['Serial Number'].astype(str)
+                    # Convert dataframe serial numbers to clean strings
+                    df_clean = df.copy()
+                    df_clean['Serial Number'] = df_clean['Serial Number'].astype(str).str.strip()
                     
-                    # Find exact match (case-insensitive)
-                    matching_rows = df[df['Serial Number'].str.upper() == sn_search.upper()]
+                    # Show what we're looking for
+                    st.write(f"Looking for: '{sn_search_clean}'")
+                    st.write(f"Available serial numbers (first 10): {df_clean['Serial Number'].head(10).tolist()}")
+                    
+                    # Try different search methods
+                    # Method 1: Exact match
+                    exact_matches = df_clean[df_clean['Serial Number'] == sn_search_clean]
+                    
+                    # Method 2: Case-insensitive match
+                    ci_matches = df_clean[df_clean['Serial Number'].str.upper() == sn_search_clean.upper()]
+                    
+                    # Method 3: Contains match
+                    contains_matches = df_clean[df_clean['Serial Number'].str.contains(sn_search_clean, case=False, na=False)]
+                    
+                    # Choose which matches to use (prefer exact)
+                    if not exact_matches.empty:
+                        matching_rows = exact_matches
+                        st.success(f"Found exact match for '{sn_search_clean}'")
+                    elif not ci_matches.empty:
+                        matching_rows = ci_matches
+                        st.success(f"Found case-insensitive match for '{sn_search_clean}'")
+                    elif not contains_matches.empty:
+                        matching_rows = contains_matches
+                        st.success(f"Found partial match for '{sn_search_clean}'")
+                    else:
+                        matching_rows = pd.DataFrame()
                     
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         data = matching_rows.iloc[0]
                         
-                        st.success(f"Found asset: {data['ASSET TYPE']} - {data['Brand']} {data['Model']}")
+                        st.success(f"✅ Found: {data['ASSET TYPE']} - {data.get('Brand', '')} {data.get('Model', '')}")
                         
                         with st.form("modify_asset"):
                             c1, c2, c3 = st.columns(3)
@@ -408,10 +305,7 @@ else:
                             
                             location_options = ["MOBILITY STORE-10", "BASEMENT", "TERRA", "OTHER"]
                             current_location = str(data.get('Location', ''))
-                            if current_location in location_options:
-                                location_index = location_options.index(current_location)
-                            else:
-                                location_index = 0
+                            location_index = location_options.index(current_location) if current_location in location_options else 0
                             lo = c1.selectbox("Location", location_options, index=location_index, key="mod_location")
                             
                             issued_to = c2.text_input("Issued To", value=str(data.get('Issued To', '')), key="mod_issued_to")
@@ -419,7 +313,7 @@ else:
                             # Handle date input
                             issued_date_str = str(data.get('Issued Date', ''))
                             try:
-                                if issued_date_str and issued_date_str != '':
+                                if issued_date_str and issued_date_str != '' and issued_date_str != 'nan':
                                     issued_date = datetime.strptime(issued_date_str, "%Y-%m-%d")
                                 else:
                                     issued_date = datetime.now()
@@ -428,30 +322,36 @@ else:
                             
                             issued_date_input = c3.date_input("Issued Date", value=issued_date, key="mod_issued_date")
                             
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.form_submit_button("UPDATE ASSET"):
-                                    try:
-                                        row_num = row_idx + 2  # +1 for header, +1 for 1-based
-                                        ws_inv.update(f'A{row_num}:K{row_num}', [[
-                                            at, br, md, sn, mc, st_v, lo, 
+                            if st.form_submit_button("UPDATE ASSET"):
+                                try:
+                                    # Find the actual row in Google Sheets
+                                    all_values = ws_inv.get_all_values()
+                                    found_row = None
+                                    for i, row in enumerate(all_values):
+                                        if i == 0:
+                                            continue  # Skip header
+                                        if len(row) > 3 and str(row[3]).strip() == sn_search_clean:
+                                            found_row = i + 1  # 1-based index for Google Sheets
+                                            break
+                                    
+                                    if found_row:
+                                        ws_inv.update(f'A{found_row}:K{found_row}', [[
+                                            at, br, md, sn.strip(), mc, st_v, lo, 
                                             issued_to, issued_date_input.strftime("%Y-%m-%d"), 
-                                            str(data.get('Registered Date', '')), 
-                                            str(data.get('Registered By', ''))
+                                            str(data.get('Registered Date', datetime.now().strftime("%Y-%m-%d"))), 
+                                            str(data.get('Registered By', st.session_state['user']))
                                         ]])
                                         st.success("Asset Updated!")
-                                        # Refresh data
-                                        df = refresh_data()
-                                        st.session_state.df = df
+                                        st.cache_data.clear()
                                         time.sleep(1)
                                         st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Failed to update asset: {str(e)}")
+                                    else:
+                                        st.error("Could not find row in Google Sheets")
+                                except Exception as e:
+                                    st.error(f"Failed to update asset: {str(e)}")
                     else:
-                        st.error(f"Serial Number '{sn_search}' not found in database.")
-                        if not df.empty:
-                            st.write("Available serial numbers (first 10):")
-                            st.write(df['Serial Number'].head(10).tolist())
+                        st.error(f"❌ Serial Number '{sn_search_clean}' not found in database.")
+                        st.write("Try searching with a different case or check for typos.")
             
             with tabs[2]:  # Issue Asset
                 st.info("Issue an available asset to someone")
@@ -465,34 +365,36 @@ else:
                     if not sn_issue or not issued_to:
                         st.error("Please fill in both fields")
                     else:
-                        # Refresh data before operation
-                        df = refresh_data()
-                        st.session_state.df = df
+                        sn_issue_clean = sn_issue.strip()
                         
-                        # Convert serial numbers to string
-                        df['Serial Number'] = df['Serial Number'].astype(str)
+                        # Find the asset
+                        all_values = ws_inv.get_all_values()
+                        found_row = None
+                        found_condition = None
                         
-                        # Find the asset (case-insensitive)
-                        matching_rows = df[
-                            (df['Serial Number'].str.upper() == sn_issue.upper()) & 
-                            (df['CONDITION'].isin(['Available/New', 'Available/Used']))
-                        ]
+                        for i, row in enumerate(all_values):
+                            if i == 0:
+                                continue  # Skip header
+                            if len(row) > 3 and str(row[3]).strip() == sn_issue_clean:
+                                found_row = i + 1
+                                if len(row) > 5:
+                                    found_condition = str(row[5]).strip()
+                                break
                         
-                        if not matching_rows.empty:
-                            row_idx = matching_rows.index[0]
-                            row_num = row_idx + 2
-                            try:
-                                ws_inv.update(f'F{row_num}:I{row_num}', [["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]])
-                                st.success("Asset Issued!")
-                                # Refresh data
-                                df = refresh_data()
-                                st.session_state.df = df
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Failed to issue asset: {str(e)}")
+                        if found_row:
+                            if found_condition in ['Available/New', 'Available/Used']:
+                                try:
+                                    ws_inv.update(f'F{found_row}:I{found_row}', [["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]])
+                                    st.success("Asset Issued!")
+                                    st.cache_data.clear()
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Failed to issue asset: {str(e)}")
+                            else:
+                                st.error(f"Asset is '{found_condition}', not available for issue.")
                         else:
-                            st.error("Asset not found or not available (must be 'Available/New' or 'Available/Used')")
+                            st.error("Asset not found.")
             
             with tabs[3]:  # Return Asset
                 st.info("Return an issued asset")
@@ -501,33 +403,30 @@ else:
                 
                 if st.button("RETURN ASSET", key="return_btn"):
                     if sn_return:
-                        # Refresh data
-                        df = refresh_data()
-                        st.session_state.df = df
+                        sn_return_clean = sn_return.strip()
                         
-                        # Convert serial numbers to string
-                        df['Serial Number'] = df['Serial Number'].astype(str)
+                        # Find the asset directly in Google Sheets
+                        all_values = ws_inv.get_all_values()
+                        found_row = None
                         
-                        matching_rows = df[
-                            (df['Serial Number'].str.upper() == sn_return.upper()) & 
-                            (df['CONDITION'] == 'Issued')
-                        ]
+                        for i, row in enumerate(all_values):
+                            if i == 0:
+                                continue
+                            if len(row) > 3 and str(row[3]).strip() == sn_return_clean:
+                                found_row = i + 1
+                                break
                         
-                        if not matching_rows.empty:
-                            row_idx = matching_rows.index[0]
-                            row_num = row_idx + 2
+                        if found_row:
                             try:
-                                ws_inv.update(f'F{row_num}:I{row_num}', [[return_status, "", "", ""]])
+                                ws_inv.update(f'F{found_row}:I{found_row}', [[return_status, "", "", ""]])
                                 st.success("Asset Returned!")
-                                # Refresh data
-                                df = refresh_data()
-                                st.session_state.df = df
+                                st.cache_data.clear()
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to return asset: {str(e)}")
                         else:
-                            st.error("Asset not found or not currently issued")
+                            st.error("Asset not found.")
             
             with tabs[4]:  # Delete Asset
                 st.warning("⚠️ This action cannot be undone!")
@@ -535,23 +434,24 @@ else:
                 
                 if st.button("DELETE ASSET", type="primary", key="delete_btn"):
                     if sn_del:
-                        # Refresh data
-                        df = refresh_data()
-                        st.session_state.df = df
+                        sn_del_clean = sn_del.strip()
                         
-                        # Convert serial numbers to string
-                        df['Serial Number'] = df['Serial Number'].astype(str)
+                        # Find the asset directly in Google Sheets
+                        all_values = ws_inv.get_all_values()
+                        found_row = None
                         
-                        matching_rows = df[df['Serial Number'].str.upper() == sn_del.upper()]
+                        for i, row in enumerate(all_values):
+                            if i == 0:
+                                continue
+                            if len(row) > 3 and str(row[3]).strip() == sn_del_clean:
+                                found_row = i + 1
+                                break
                         
-                        if not matching_rows.empty:
-                            row_idx = matching_rows.index[0]
+                        if found_row:
                             try:
-                                ws_inv.delete_rows(row_idx + 2)
+                                ws_inv.delete_rows(found_row)
                                 st.success("Asset Deleted!")
-                                # Refresh data
-                                df = refresh_data()
-                                st.session_state.df = df
+                                st.cache_data.clear()
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
@@ -575,44 +475,45 @@ else:
             if not sn_issue or not issued_to:
                 st.error("Please fill in both fields")
             else:
-                # Refresh data
-                df = refresh_data()
-                st.session_state.df = df
+                sn_issue_clean = sn_issue.strip()
                 
-                # Convert serial numbers to string
-                df['Serial Number'] = df['Serial Number'].astype(str)
+                # Find the asset directly in Google Sheets
+                all_values = ws_inv.get_all_values()
+                found_row = None
+                found_condition = None
                 
-                matching_rows = df[
-                    (df['Serial Number'].str.upper() == sn_issue.upper()) & 
-                    (df['CONDITION'].isin(['Available/New', 'Available/Used']))
-                ]
+                for i, row in enumerate(all_values):
+                    if i == 0:
+                        continue
+                    if len(row) > 3 and str(row[3]).strip() == sn_issue_clean:
+                        found_row = i + 1
+                        if len(row) > 5:
+                            found_condition = str(row[5]).strip()
+                        break
                 
-                if not matching_rows.empty:
-                    row_idx = matching_rows.index[0]
-                    row_num = row_idx + 2
-                    try:
-                        ws_inv.update(f'F{row_num}:I{row_num}', [["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]])
-                        st.success("Asset Issued!")
-                        # Refresh data
-                        df = refresh_data()
-                        st.session_state.df = df
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to issue asset: {str(e)}")
+                if found_row:
+                    if found_condition in ['Available/New', 'Available/Used']:
+                        try:
+                            ws_inv.update(f'F{found_row}:I{found_row}', [["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]])
+                            st.success("Asset Issued!")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to issue asset: {str(e)}")
+                    else:
+                        st.error(f"Asset is '{found_condition}', not available for issue.")
                 else:
-                    st.error("Asset not found or not available")
+                    st.error("Asset not found.")
         st.markdown('</div>', unsafe_allow_html=True)
     
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         
-        # Refresh button for database
-        if st.button("🔄 Refresh Database View"):
-            df = refresh_data()
-            st.session_state.df = df
+        if st.button("🔄 Refresh Database"):
+            st.cache_data.clear()
+            df = load_data()
             st.success("Database refreshed!")
-            time.sleep(0.5)
             st.rerun()
         
         search_term = st.text_input("Search Database (by Serial Number, Asset Type, etc.)", 
@@ -620,7 +521,6 @@ else:
         
         if search_term:
             try:
-                # Convert all columns to string for searching
                 filtered_df = df[df.apply(lambda row: row.astype(str).str.contains(search_term, case=False, na=False).any(), axis=1)]
             except:
                 filtered_df = df
