@@ -7,9 +7,10 @@ import time
 from io import BytesIO
 import plotly.express as px
 from PIL import Image
+import hashlib
 
 # ==========================================
-# 1. PERFORMANCE CONFIGURATION
+# 1. CONFIGURATION & STYLING
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
@@ -25,9 +26,10 @@ st.markdown("""
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
+SESSION_SECRET = "expo_secure_salt_2026" # Secret key for session tokens
+
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
 HEADERS = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"]
 
 try:
@@ -37,7 +39,36 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 2. OPTIMIZED CONNECTION
+# 2. SESSION SECURITY FUNCTIONS
+# ==========================================
+def make_token(username):
+    """Creates a secure hash token for the session."""
+    raw = f"{username}{SESSION_SECRET}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+def check_token(username, token):
+    """Verifies if the session token is valid."""
+    return token == make_token(username)
+
+def set_login_session(username, role, can_import=False):
+    """Sets session state AND URL parameters for persistence."""
+    st.session_state['logged_in'] = True
+    st.session_state['role'] = role
+    st.session_state['user'] = username
+    st.session_state['can_import'] = can_import
+    
+    # Update URL to persist login across refreshes
+    st.query_params["user"] = username
+    st.query_params["token"] = make_token(username)
+
+def clear_login_session():
+    """Clears session and URL parameters."""
+    st.session_state['logged_in'] = False
+    st.session_state.clear()
+    st.query_params.clear()
+
+# ==========================================
+# 3. CONNECTION & DATA
 # ==========================================
 @st.cache_resource
 def get_client():
@@ -63,34 +94,23 @@ def get_worksheet(name):
         except: return sh.sheet1
     except: return None
 
-# --- SAFE ADD FUNCTION (The Real Fix) ---
 def safe_add_rows(ws, rows_list):
-    """
-    Adds rows one by one. 
-    100% compatible with ALL gspread versions.
-    """
+    """Adds rows one by one. 100% compatible."""
     for row in rows_list:
         ws.append_row(row)
 
-# ==========================================
-# 3. HIGH-SPEED DATA ENGINE
-# ==========================================
 def load_data_initial():
     ws = get_worksheet("Sheet1")
     if not ws: return pd.DataFrame(columns=HEADERS)
     try:
         raw = ws.get_all_values()
         if not raw: return pd.DataFrame(columns=HEADERS)
-        
-        if raw[0] != HEADERS:
-            pass 
-
+        if raw[0] != HEADERS: pass 
         rows = raw[1:]
         clean_rows = []
         for r in rows:
             while len(r) < len(HEADERS): r.append("")
             clean_rows.append(r[:len(HEADERS)])
-            
         return pd.DataFrame(clean_rows, columns=HEADERS)
     except: return pd.DataFrame(columns=HEADERS)
 
@@ -112,10 +132,35 @@ def to_excel(df):
     return output.getvalue()
 
 # ==========================================
-# 4. LOGIN
+# 4. AUTO-LOGIN CHECK
 # ==========================================
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+if 'logged_in' not in st.session_state:
+    # CHECK URL FOR SESSION
+    params = st.query_params
+    url_user = params.get("user")
+    url_token = params.get("token")
+    
+    if url_user and url_token and check_token(url_user, url_token):
+        # Valid Session Found! Restore State.
+        if url_user == "Administrator":
+             set_login_session("Administrator", "Admin", True)
+        else:
+             # Verify permissions for tech
+             ws_u = get_worksheet("Users")
+             can_bulk = False
+             if ws_u:
+                 records = ws_u.get_all_records()
+                 for r in records:
+                     if str(r.get('Username')) == url_user:
+                         can_bulk = (str(r.get('Permissions')) == "Bulk_Allowed")
+                         break
+             set_login_session(url_user, "Technician", can_bulk)
+    else:
+        st.session_state['logged_in'] = False
 
+# ==========================================
+# 5. LOGIN SCREEN
+# ==========================================
 def login_screen():
     st.markdown("<br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
@@ -134,10 +179,8 @@ def login_screen():
                         valid = False
                         for user in users:
                             if str(user.get('Username')) == u and str(user.get('PIN')) == p:
-                                st.session_state['logged_in'] = True
-                                st.session_state['role'] = "Technician"
-                                st.session_state['user'] = u
-                                st.session_state['can_import'] = (str(user.get('Permissions')) == "Bulk_Allowed")
+                                perm = (str(user.get('Permissions')) == "Bulk_Allowed")
+                                set_login_session(u, "Technician", perm)
                                 valid = True
                                 st.rerun()
                         if not valid: st.error("Invalid Credentials")
@@ -148,26 +191,32 @@ def login_screen():
                 p = st.text_input("Password", type="password")
                 if st.form_submit_button("Login"):
                     if p == ADMIN_PASSWORD:
-                        st.session_state['logged_in'] = True
-                        st.session_state['role'] = "Admin"
-                        st.session_state['user'] = "Administrator"
-                        st.session_state['can_import'] = True
+                        set_login_session("Administrator", "Admin", True)
                         st.rerun()
                     else: st.error("Access Denied")
 
 # ==========================================
-# 5. MAIN APP
+# 6. MAIN APP
 # ==========================================
 if not st.session_state['logged_in']:
     login_screen()
 else:
+    # Load data if needed
     sync_local_state()
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
     st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
-    if st.sidebar.button("🔄 Refresh Data"): force_reload(); st.success("Refreshed!"); time.sleep(0.5); st.rerun()
-    if st.sidebar.button("🚪 Logout"): st.session_state['logged_in'] = False; st.rerun()
+    
+    if st.sidebar.button("🔄 Refresh Data"): 
+        force_reload()
+        st.success("Refreshed!")
+        time.sleep(0.5)
+        st.rerun()
+        
+    if st.sidebar.button("🚪 Logout"): 
+        clear_login_session()
+        st.rerun()
 
     # --- TECHNICIAN ---
     if st.session_state['role'] == "Technician":
@@ -248,7 +297,7 @@ else:
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
-                        safe_add_rows(ws_inv, [row]) # <--- SAFE METHOD
+                        safe_add_rows(ws_inv, [row])
                         
                         new_df = pd.DataFrame([row], columns=HEADERS)
                         st.session_state['inventory_df'] = pd.concat([df, new_df], ignore_index=True)
@@ -272,7 +321,7 @@ else:
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: 
-                        safe_add_rows(ws_inv, rows) # <--- SAFE METHOD
+                        safe_add_rows(ws_inv, rows)
                         force_reload()
                         st.success(f"Imported {len(rows)}")
             else: st.error("Permission Denied")
@@ -341,8 +390,7 @@ else:
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             
-                            safe_add_rows(ws_inv, rows) # <--- SAFE METHOD
-                            
+                            safe_add_rows(ws_inv, rows)
                             force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
 
