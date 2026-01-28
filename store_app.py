@@ -11,12 +11,12 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. FIXED SIDEBAR & EXECUTIVE THEME (V174)
+# 1. FIXED SIDEBAR & ELITE THEME (V175)
 # ==========================================
 st.set_page_config(
     page_title="Asset Management Pro", 
     layout="wide", 
-    initial_sidebar_state="expanded" # Keep sidebar open on load
+    initial_sidebar_state="expanded" # Force open on startup
 )
 
 def get_base64_bin(file_path):
@@ -43,14 +43,19 @@ if os.path.exists("logo.png"):
 st.markdown(f"""
 <style>
     {bg_css}
-    /* HIDE SIDEBAR TOGGLE TO LOCK IT OPEN */
-    button[kind="headerNoPadding"] {{ display: none !important; }}
+    /* PERMANENTLY LOCK SIDEBAR - REMOVE TOGGLE BUTTON */
+    button[kind="headerNoPadding"], [data-testid="collapsedControl"] {{
+        display: none !important;
+    }}
+    
     header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
 
     section[data-testid="stSidebar"] {{
         background-color: rgba(255, 255, 255, 0.7) !important;
         backdrop-filter: blur(25px);
         border-right: 1px solid rgba(197, 160, 89, 0.3);
+        min-width: 250px !important;
+        width: 250px !important;
     }}
 
     .exec-card {{
@@ -146,8 +151,8 @@ else:
         st.write(f"USER: **{st.session_state['user']}**")
         st.divider()
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ISSUE ASSET", "REGISTER ASSET"]
-        nav = st.radio("Navigation Menu", menu)
-        st.markdown("<br>" * 5, unsafe_allow_html=True)
+        nav = st.radio("System Menu", menu)
+        st.markdown("<br>" * 8, unsafe_allow_html=True)
         if st.button("Logout System", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- DASHBOARD ---
@@ -186,7 +191,7 @@ else:
         with t1:
             with st.form("manual_add"):
                 c1, c2, c3 = st.columns(3)
-                at = c1.text_input("Asset Type (e.g. Camera)")
+                at = c1.text_input("Asset Type (Manual)")
                 br = c2.text_input("Brand")
                 md = c3.text_input("Model")
                 sn = c1.text_input("Serial (SN)")
@@ -196,20 +201,17 @@ else:
                 if st.form_submit_button("REGISTER ASSET"):
                     get_ws("Sheet1").append_row([at, br, md, sn, mc, st_val, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
                     st.success("Registered!"); time.sleep(1); st.rerun()
-        with t2:
-            s_sn = st.text_input("SN to Modify")
-            if s_sn:
-                match = df[df['SERIAL'] == s_sn]
-                if not match.empty:
-                    with st.form("mod_f"):
-                        n_st = st.selectbox("Update Status", ["Available/New", "Available/Used", "Issued", "Faulty"])
-                        if st.form_submit_button("SAVE"):
-                            ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
-                            get_ws("Sheet1").update_cell(ridx, 6, n_st)
-                            st.success("Saved"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- USER MANAGER (REPAIRED & FIXED) ---
+    # --- DATABASE ---
+    elif nav == "DATABASE":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        q = st.text_input("🔍 Global Search")
+        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
+        st.dataframe(f_df, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- USER MANAGER (FORCE RENDER) ---
     elif nav == "USER MANAGER":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         ws_u = get_ws("Users")
@@ -224,30 +226,14 @@ else:
             with st.form("u_new"):
                 st.write("**New Technician Account**")
                 un, up = st.text_input("Username"), st.text_input("PIN")
-                if st.form_submit_button("CREATE ACCOUNT"):
+                if st.form_submit_button("CREATE"):
                     ws_u.append_row([un, up, "Standard"])
-                    st.success("Done!"); time.sleep(1); st.rerun()
+                    st.success("User Created!"); time.sleep(1); st.rerun()
         with c2:
             if not udf.empty:
-                st.write("**Access Permissions**")
+                st.write("**Access Controls**")
                 target = st.selectbox("Select User", udf['Username'].tolist())
-                new_p = st.selectbox("Level", ["Standard", "Bulk_Allowed"])
-                if st.button("SAVE PERM"):
-                    cell = ws_u.find(target)
-                    ws_u.update_cell(cell.row, 3, new_p)
-                    st.success("Updated")
                 if st.button("DELETE USER"):
                     ws_u.delete_rows(ws_u.find(target).row)
-                    st.success("Deleted"); time.sleep(1); st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif nav == "DATABASE":
-        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        col_s, col_dl = st.columns([4, 1.2])
-        with col_s: q = st.text_input("🔍 Search Database")
-        with col_dl: 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button("📥 EXCEL", to_excel(df), "Inventory_Master.xlsx", use_container_width=True)
-        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
-        st.dataframe(f_df, use_container_width=True)
+                    st.success("Deleted!"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
