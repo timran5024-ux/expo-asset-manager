@@ -16,7 +16,7 @@ st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wi
 
 st.markdown("""
 <style>
-    /* 1. HIDE TOP HEADER (GitHub icon, Running Man, Streamlit Menu) */
+    /* 1. HIDE TOP HEADER */
     header {visibility: hidden !important;}
     [data-testid="stHeader"] {display: none !important;}
     #MainMenu {visibility: hidden !important;}
@@ -28,7 +28,7 @@ st.markdown("""
     [data-testid="stDecoration"] {display: none !important;}
     [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* 3. PROFESSIONAL BACKGROUND & FORM STYLING */
+    /* 3. STYLING */
     .stApp {background-color: #f4f6f9;}
     div[data-testid="stForm"] {
         background: #ffffff; 
@@ -37,8 +37,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
         border-top: 5px solid #cfaa5e;
     }
-    
-    /* 4. BUTTON STYLING */
     .stButton>button {
         width: 100%; 
         border-radius: 6px; 
@@ -351,12 +349,43 @@ else:
         nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
         
         if nav == "Dashboard":
+            st.markdown("### 📈 Asset Analytics")
+            
             if not df.empty:
-                c1,c2,c3 = st.columns(3)
-                c1.metric("Total", len(df))
-                c2.metric("Issued", len(df[df['CONDITION']=='Issued']))
-                c3.metric("Available", len(df[df['CONDITION'].str.contains('Available', na=False)]))
-                st.plotly_chart(px.pie(df, names='CONDITION'), use_container_width=True)
+                # 1. DEFINE EXACT COLORS
+                color_map = {
+                    "Available/New": "#28a745",  # Green
+                    "Available/Used": "#218838", # Dark Green
+                    "Issued": "#007bff",         # Blue
+                    "Faulty": "#dc3545"          # Red
+                }
+                
+                # 2. GET UNIQUE ASSET TYPES (e.g. "Camera", "Pencil")
+                asset_types = sorted(df['ASSET TYPE'].unique())
+                
+                # 3. CREATE GRID (2 Charts per Row)
+                for i, atype in enumerate(asset_types):
+                    if i % 2 == 0:
+                        cols = st.columns(2)
+                    
+                    # Filter Data for this specific asset type
+                    sub_df = df[df['ASSET TYPE'] == atype]
+                    
+                    # Create Pie Chart
+                    fig = px.pie(
+                        sub_df, 
+                        names='CONDITION', 
+                        title=f"<b>{atype}</b> (Total: {len(sub_df)})",
+                        color='CONDITION',
+                        color_discrete_map=color_map,
+                        hole=0.4
+                    )
+                    
+                    # Place in grid
+                    with cols[i % 2]:
+                        st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No assets in database yet.")
 
         elif nav == "Manage Users":
             st.subheader("👥 Users")
