@@ -18,7 +18,52 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ... (keep all your CSS and styling the same as before) ...
+def get_base64_bin(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+bg_css = ""
+if os.path.exists("logo.png"):
+    try:
+        bin_str = get_base64_bin("logo.png")
+        bg_css = f"""
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: 600px; background-repeat: repeat; background-attachment: fixed;
+        }}
+        .stApp::before {{
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(12px); z-index: -1;
+        }}
+        """
+    except: 
+        pass
+
+st.markdown(f"""
+<style>
+    {bg_css}
+    footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
+    /* PROFESSIONAL STYLING */
+    div.stButton > button {{
+        background: #1A1A1A !important; color: #FFFFFF !important;
+        border-radius: 10px !important; height: 50px !important;
+        border: none !important; font-weight: 700 !important; width: 100%;
+    }}
+    div.stButton > button p {{ color: white !important; font-size: 15px !important; font-weight: 800 !important; }}
+    .exec-card {{
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid rgba(197, 160, 89, 0.4);
+        border-radius: 12px; padding: 20px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); margin-bottom: 20px;
+        text-align: center;
+    }}
+    .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; margin-bottom: 10px; }}
+    .hw-count {{ font-size: 15px; font-weight: 700; color: #111827; margin: 4px 0; text-align: left; }}
+    .metric-value {{ font-size: 38px; font-weight: 900; }}
+    .stDataFrame {{ border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }}
+</style>
+""", unsafe_allow_html=True)
 
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
@@ -180,8 +225,138 @@ else:
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
     
     if nav == "DASHBOARD":
-        # ... (keep your dashboard code exactly as it was) ...
-        pass
+        try:
+            if df.empty:
+                st.info("No assets registered yet.")
+            else:
+                # Prepare data for analysis
+                df_clean = df.copy()
+                
+                # Clean up column names and data
+                if 'ASSET TYPE' in df_clean.columns:
+                    df_clean['ASSET TYPE'] = df_clean['ASSET TYPE'].astype(str).fillna('')
+                if 'CONDITION' in df_clean.columns:
+                    df_clean['CONDITION'] = df_clean['CONDITION'].astype(str).fillna('')
+                
+                # Calculate metrics
+                total_assets = len(df_clean)
+                
+                # Count by condition
+                if 'CONDITION' in df_clean.columns:
+                    new = len(df_clean[df_clean['CONDITION'] == 'Available/New'])
+                    used = len(df_clean[df_clean['CONDITION'] == 'Available/Used'])
+                    faulty = len(df_clean[df_clean['CONDITION'] == 'Faulty'])
+                    issued = len(df_clean[df_clean['CONDITION'] == 'Issued'])
+                else:
+                    new = used = faulty = issued = 0
+                
+                # Count by asset type
+                if 'ASSET TYPE' in df_clean.columns:
+                    types = df_clean['ASSET TYPE'].str.upper()
+                    c_cam = len(df_clean[types.str.contains('CAMERA', na=False)])
+                    c_rdr = len(df_clean[types.str.contains('READER', na=False)])
+                    c_pnl = len(df_clean[types.str.contains('PANEL', na=False)])
+                    c_lck = len(df_clean[types.str.contains('LOCK|MAG', na=False, regex=True)])
+                else:
+                    c_cam = c_rdr = c_pnl = c_lck = 0
+                
+                # Display metrics in cards
+                m1, m2, m3, m4, m5 = st.columns(5)
+                with m1: 
+                    st.markdown(f'<div class="exec-card"><p class="metric-title">Total Assets</p><p class="metric-value" style="color:#1F2937;">{total_assets}</p></div>', unsafe_allow_html=True)
+                with m2: 
+                    st.markdown(f'<div class="exec-card"><p class="metric-title">Available New</p><p class="metric-value" style="color:#28A745;">{new}</p></div>', unsafe_allow_html=True)
+                with m3: 
+                    st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
+                with m4: 
+                    st.markdown(f'<div class="exec-card"><p class="metric-title">Faulty</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
+                with m5: 
+                    st.markdown(f'<div class="exec-card"><p class="metric-title">Issued</p><p class="metric-value" style="color:#6C757D;">{issued}</p></div>', unsafe_allow_html=True)
+                
+                # Hardware breakdown and pie chart
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+                    st.markdown(f"""<p class="metric-title">Hardware Breakdown</p>
+                        <p class="hw-count">📹 Cameras: {c_cam}</p>
+                        <p class="hw-count">💳 Card Readers: {c_rdr}</p>
+                        <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
+                        <p class="hw-count">🧲 Mag Locks: {c_lck}</p>""", unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+                    try:
+                        if 'CONDITION' in df_clean.columns and not df_clean['CONDITION'].empty:
+                            # Filter out empty conditions
+                            condition_data = df_clean[df_clean['CONDITION'] != '']
+                            if not condition_data.empty:
+                                clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", 
+                                          "Faulty": "#DC3545", "Issued": "#6C757D"}
+                                fig_pie = px.pie(condition_data, names='CONDITION', hole=0.4, 
+                                                color='CONDITION', color_discrete_map=clr_map)
+                                fig_pie.update_layout(title="Asset Status Distribution", 
+                                                     showlegend=True, height=400,
+                                                     margin=dict(t=40,b=0,l=0,r=0), 
+                                                     paper_bgcolor='rgba(0,0,0,0)')
+                                st.plotly_chart(fig_pie, use_container_width=True)
+                            else:
+                                st.info("No condition data available")
+                        else:
+                            st.info("Condition data not found")
+                    except Exception as e:
+                        st.warning(f"Could not generate pie chart: {str(e)}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Assets by Type chart
+                st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+                try:
+                    if 'ASSET TYPE' in df_clean.columns and not df_clean['ASSET TYPE'].empty:
+                        # Filter out empty asset types
+                        type_data = df_clean[df_clean['ASSET TYPE'] != '']
+                        if not type_data.empty:
+                            type_counts = type_data['ASSET TYPE'].value_counts().reset_index()
+                            type_counts.columns = ['ASSET TYPE', 'Count']
+                            fig_bar = px.bar(type_counts, x='ASSET TYPE', y='Count', 
+                                           title="Assets by Type")
+                            fig_bar.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)')
+                            st.plotly_chart(fig_bar, use_container_width=True)
+                        else:
+                            st.info("No asset type data available")
+                    else:
+                        st.info("Asset type data not found")
+                except Exception as e:
+                    st.warning(f"Could not generate bar chart: {str(e)}")
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Recently Issued Assets
+                st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+                st.subheader("Recently Issued Assets")
+                try:
+                    if 'CONDITION' in df_clean.columns and 'Issued Date' in df_clean.columns:
+                        issued_assets = df_clean[df_clean['CONDITION'] == 'Issued'].copy()
+                        if not issued_assets.empty:
+                            # Try to sort by date
+                            try:
+                                issued_assets['Issued Date'] = pd.to_datetime(issued_assets['Issued Date'], errors='coerce')
+                                issued_assets = issued_assets.sort_values('Issued Date', ascending=False).head(10)
+                            except:
+                                # If date parsing fails, just take the first 10
+                                issued_assets = issued_assets.head(10)
+                            
+                            display_cols = ['ASSET TYPE', 'Serial Number', 'Issued To', 'Issued Date']
+                            available_cols = [col for col in display_cols if col in issued_assets.columns]
+                            st.dataframe(issued_assets[available_cols], use_container_width=True)
+                        else:
+                            st.info("No issued assets found")
+                    else:
+                        st.info("Required columns not found for issued assets")
+                except Exception as e:
+                    st.info(f"Error loading issued assets: {str(e)}")
+                st.markdown('</div>', unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Dashboard error: {str(e)}")
+            st.info("Try refreshing the data or check your connection.")
     
     elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
         if st.session_state['role'] != "Admin" and nav == "ASSET CONTROL": 
@@ -601,11 +776,4 @@ else:
                 
                 if col2.button("REVOKE ACCESS", type="secondary"):
                     try:
-                        ws_u.delete_rows(ws_u.find(target).row)
-                        st.success("Removed")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to remove user: {str(e)}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+                        ws
