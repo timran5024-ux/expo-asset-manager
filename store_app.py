@@ -8,21 +8,18 @@ import plotly.express as px
 import os
 import base64
 from io import BytesIO
-
 # ==========================================
 # 1. PARALLEL CONTROL UI ENGINE (V181)
 # ==========================================
 st.set_page_config(
-    page_title="Asset Management Pro", 
-    layout="wide", 
+    page_title="Asset Management Pro",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
-
 def get_base64_bin(file_path):
     with open(file_path, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
-
 bg_css = ""
 if os.path.exists("logo.png"):
     try:
@@ -38,12 +35,10 @@ if os.path.exists("logo.png"):
         }}
         """
     except: pass
-
 st.markdown(f"""
 <style>
     {bg_css}
-    header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
-
+    footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
     /* EXPO BLACK BUTTONS */
     div.stButton > button {{
         background: #1A1A1A !important; color: #FFFFFF !important;
@@ -51,7 +46,6 @@ st.markdown(f"""
         border: none !important; font-weight: 700 !important; width: 100%;
     }}
     div.stButton > button p {{ color: white !important; font-size: 15px !important; font-weight: 800 !important; }}
-
     .exec-card {{
         background: rgba(255, 255, 255, 0.95) !important;
         border: 1px solid rgba(197, 160, 89, 0.4);
@@ -61,12 +55,10 @@ st.markdown(f"""
     }}
 </style>
 """, unsafe_allow_html=True)
-
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
 # ==========================================
 # 2. CORE UTILITIES
 # ==========================================
@@ -75,23 +67,19 @@ def get_client():
     creds_dict = dict(st.secrets["gcp_service_account"])
     creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip('"')
     return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE))
-
 def get_ws(name):
     sh = get_client().open_by_key(SHEET_ID)
     try: return sh.worksheet(name)
     except: return sh.sheet1
-
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
     return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
-
 # ==========================================
 # 3. INTERFACE
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
-
 if not st.session_state['logged_in']:
     c1, mid, c3 = st.columns([1, 1.4, 1])
     with mid:
@@ -114,9 +102,7 @@ if not st.session_state['logged_in']:
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 else:
-    df = load_data()
-    ws_inv = get_ws("Sheet1")
-    
+    # --- GUARANTEED SIDEBAR ---
     with st.sidebar:
         if os.path.exists("logo.png"): st.image("logo.png", width=130)
         st.markdown(f"**USER: {st.session_state['user']}**")
@@ -124,14 +110,15 @@ else:
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ASSET CONTROL", "DATABASE"]
         nav = st.radio("Navigation", menu)
         if st.button("Logout"): st.session_state.clear(); st.rerun()
-
+    
+    df = load_data()
+    ws_inv = get_ws("Sheet1")
+   
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
-
     if nav == "DASHBOARD":
         # Security hardware parsing logic...
         m1, m2, m3 = st.columns(3)
         # Dashboard content here...
-
     # --- ASSET CONTROL (FIXED) ---
     elif nav == "ASSET CONTROL":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
@@ -150,14 +137,13 @@ else:
                     ws_inv.append_row([at, br, md, sn, mc, st_v, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
                     st.success("Asset Registered!"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-
     # --- USER MANAGER (PARALLEL BUTTONS) ---
     elif nav == "USER MANAGER":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         ws_u = get_ws("Users")
         udf = pd.DataFrame(ws_u.get_all_records())
         st.dataframe(udf, use_container_width=True)
-        
+       
         c1, c2 = st.columns(2)
         with c1:
             with st.form("new_tech"):
@@ -169,7 +155,7 @@ else:
             if not udf.empty:
                 target = st.selectbox("Select User", udf['Username'].tolist())
                 new_p = st.selectbox("Permission", ["Standard", "Bulk_Allowed"])
-                
+               
                 # PARALLEL BUTTONS LOGIC
                 pb1, pb2 = st.columns(2)
                 if pb1.button("UPDATE PERMISSION"):
