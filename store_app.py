@@ -10,22 +10,42 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & CLEAN UI STYLING
+# 1. CONFIGURATION & AGGRESSIVE CLEAN UI
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* HIDE STREAMLIT DEFAULT UI ELEMENTS */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stAppDeployButton {display: none;}
+    /* 1. HIDE TOP HEADER (GitHub icon, Running Man, Streamlit Menu) */
+    header {visibility: hidden !important;}
+    [data-testid="stHeader"] {display: none !important;}
+    #MainMenu {visibility: hidden !important;}
     
-    /* PROFESSIONAL APP STYLING */
+    /* 2. HIDE FOOTER & MANAGE APP BUTTON */
+    footer {visibility: hidden !important; display: none !important;}
+    .stAppDeployButton {display: none !important;}
+    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    
+    /* 3. PROFESSIONAL BACKGROUND & FORM STYLING */
     .stApp {background-color: #f4f6f9;}
-    div[data-testid="stForm"] {background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 5px solid #cfaa5e;}
-    .stButton>button {width: 100%; border-radius: 6px; height: 45px; font-weight: 600; transition: 0.2s;}
+    div[data-testid="stForm"] {
+        background: #ffffff; 
+        padding: 30px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        border-top: 5px solid #cfaa5e;
+    }
+    
+    /* 4. BUTTON STYLING */
+    .stButton>button {
+        width: 100%; 
+        border-radius: 6px; 
+        height: 45px; 
+        font-weight: 600; 
+        transition: 0.2s;
+    }
     .stButton>button:active {transform: scale(0.98);}
 </style>
 """, unsafe_allow_html=True)
