@@ -10,41 +10,38 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & AGGRESSIVE CLEAN UI
+# 1. CONFIGURATION & HOVER ANIMATION CSS
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* 1. HIDE TOP HEADER */
-    header {visibility: hidden !important;}
-    [data-testid="stHeader"] {display: none !important;}
-    #MainMenu {visibility: hidden !important;}
+    /* 1. HIDE DEFAULT UI */
+    header, footer, #MainMenu, .stAppDeployButton {visibility: hidden !important; display: none !important;}
+    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* 2. HIDE FOOTER & MANAGE APP BUTTON */
-    footer {visibility: hidden !important; display: none !important;}
-    .stAppDeployButton {display: none !important;}
-    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
+    /* 2. MAIN BACKGROUND */
+    .stApp {background-color: #f0f2f6;}
     
-    /* 3. STYLING */
-    .stApp {background-color: #f4f6f9;}
-    div[data-testid="stForm"] {
-        background: #ffffff; 
-        padding: 30px; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-        border-top: 5px solid #cfaa5e;
+    /* 3. CARD STYLING & HOVER ZOOM EFFECT */
+    div[data-testid="column"] {
+        background: white;
+        border-radius: 10px;
+        padding: 10px;
+        border: 1px solid #e0e0e0;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0.2s;
     }
-    .stButton>button {
-        width: 100%; 
-        border-radius: 6px; 
-        height: 45px; 
-        font-weight: 600; 
-        transition: 0.2s;
+    
+    /* THE MAGIC: Zoom on Hover */
+    div[data-testid="column"]:hover {
+        transform: scale(1.15); /* Make it 15% bigger */
+        z-index: 100; /* Bring to front */
+        box-shadow: 0 15px 30px rgba(0,0,0,0.2); /* Add shadow */
+        border-color: #cfaa5e;
     }
-    .stButton>button:active {transform: scale(0.98);}
+
+    /* 4. BUTTONS */
+    .stButton>button {width: 100%; border-radius: 6px; font-weight: 600;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -64,7 +61,7 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 2. SESSION SECURITY
+# 2. SESSION & CONNECTION
 # ==========================================
 def make_token(username):
     raw = f"{username}{SESSION_SECRET}"
@@ -86,9 +83,6 @@ def clear_login_session():
     st.session_state.clear()
     st.query_params.clear()
 
-# ==========================================
-# 3. CONNECTION & DATA
-# ==========================================
 @st.cache_resource
 def get_client():
     try:
@@ -221,13 +215,11 @@ else:
     ws_inv = get_worksheet("Sheet1")
 
     st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
-    
     if st.sidebar.button("🔄 Refresh Data"): 
         force_reload()
         st.success("Refreshed!")
         time.sleep(0.5)
         st.rerun()
-        
     if st.sidebar.button("🚪 Logout"): 
         clear_login_session()
         st.rerun()
@@ -254,7 +246,6 @@ else:
                     item = match.iloc[0]
                     idx = int(match.index[0])
                     st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
-                    
                     if "Available" in str(item['CONDITION']):
                         with st.form("issue"):
                             tkt = st.text_input("Ticket #")
@@ -263,12 +254,10 @@ else:
                                 ws_inv.update_cell(sheet_row, 6, "Issued")
                                 ws_inv.update_cell(sheet_row, 8, st.session_state['user'])
                                 ws_inv.update_cell(sheet_row, 9, tkt)
-                                
                                 df.at[idx, 'CONDITION'] = "Issued"
                                 df.at[idx, 'ISSUED TO'] = st.session_state['user']
                                 df.at[idx, 'TICKET'] = tkt
                                 st.session_state['inventory_df'] = df
-                                
                                 st.success("Issued!"); time.sleep(0.5); st.rerun()
                     else: st.warning(f"Item is {item['CONDITION']}")
                 else: st.error("Not Found")
@@ -283,19 +272,16 @@ else:
                     stat = c1.selectbox("New Condition", ["Available/New", "Available/Used", "Faulty"])
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                     loc = c2.selectbox("Location", stores)
-                    
                     if st.form_submit_button("Return"):
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         ws_inv.update_cell(sheet_row, 6, stat)
                         ws_inv.update_cell(sheet_row, 7, loc)
                         ws_inv.update_cell(sheet_row, 8, "")
-                        
                         df.at[idx, 'CONDITION'] = stat
                         df.at[idx, 'LOCATION'] = loc
                         df.at[idx, 'ISSUED TO'] = ""
                         st.session_state['inventory_df'] = df
-                        
                         st.success("Returned!"); time.sleep(0.5); st.rerun()
 
         elif nav == "➕ Add Asset":
@@ -307,12 +293,10 @@ else:
                 stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                 loc = c2.selectbox("Location", stores)
                 stat = st.selectbox("Condition", ["Available/New", "Available/Used"])
-                
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
                         safe_add_rows(ws_inv, [row])
-                        
                         new_df = pd.DataFrame([row], columns=HEADERS)
                         st.session_state['inventory_df'] = pd.concat([df, new_df], ignore_index=True)
                         st.success("Saved!"); time.sleep(0.5); st.rerun()
@@ -329,11 +313,7 @@ else:
                     for i,r in d.iterrows():
                         s = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
                         if s and s not in df['SERIAL'].astype(str).tolist():
-                            rows.append([
-                                r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), 
-                                s, r.get('MAC ADDRESS', ''), "Available/New", 
-                                r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
-                            ])
+                            rows.append([r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), s, r.get('MAC ADDRESS', ''), "Available/New", r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"])
                     if rows: 
                         safe_add_rows(ws_inv, rows)
                         force_reload()
@@ -349,43 +329,30 @@ else:
         nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
         
         if nav == "Dashboard":
-            st.markdown("### 📈 Asset Analytics")
-            
+            st.markdown("### 📈 Asset Overview")
             if not df.empty:
-                # 1. DEFINE EXACT COLORS
-                color_map = {
-                    "Available/New": "#28a745",  # Green
-                    "Available/Used": "#218838", # Dark Green
-                    "Issued": "#007bff",         # Blue
-                    "Faulty": "#dc3545"          # Red
-                }
-                
-                # 2. GET UNIQUE ASSET TYPES (e.g. "Camera", "Pencil")
+                color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
                 asset_types = sorted(df['ASSET TYPE'].unique())
                 
-                # 3. CREATE GRID (2 Charts per Row)
-                for i, atype in enumerate(asset_types):
-                    if i % 2 == 0:
-                        cols = st.columns(2)
-                    
-                    # Filter Data for this specific asset type
-                    sub_df = df[df['ASSET TYPE'] == atype]
-                    
-                    # Create Pie Chart
-                    fig = px.pie(
-                        sub_df, 
-                        names='CONDITION', 
-                        title=f"<b>{atype}</b> (Total: {len(sub_df)})",
-                        color='CONDITION',
-                        color_discrete_map=color_map,
-                        hole=0.4
-                    )
-                    
-                    # Place in grid
-                    with cols[i % 2]:
-                        st.plotly_chart(fig, use_container_width=True)
+                # --- MATRIX GRID LAYOUT (4 COLS) ---
+                cols_per_row = 4
+                rows_needed = (len(asset_types) + cols_per_row - 1) // cols_per_row
+                
+                for row_idx in range(rows_needed):
+                    cols = st.columns(cols_per_row)
+                    for col_idx in range(cols_per_row):
+                        idx = row_idx * cols_per_row + col_idx
+                        if idx < len(asset_types):
+                            atype = asset_types[idx]
+                            sub = df[df['ASSET TYPE'] == atype]
+                            with cols[col_idx]:
+                                # Clean Pie Chart (Minimalist)
+                                fig = px.pie(sub, names='CONDITION', title=f"<b>{atype}</b><br><span style='font-size:12px; color:gray'>Total: {len(sub)}</span>",
+                                             color='CONDITION', color_discrete_map=color_map, hole=0.5)
+                                fig.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0), height=200)
+                                st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No assets in database yet.")
+                st.info("No assets found.")
 
         elif nav == "Manage Users":
             st.subheader("👥 Users")
@@ -424,7 +391,6 @@ else:
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                     loc = c7.selectbox("Location", stores)
                     qty = c8.number_input("Quantity", 1, 100, 1)
-                    
                     if st.form_submit_button("Add Asset"):
                         if not atype: st.error("Type Required")
                         elif not serial and qty == 1: st.error("Serial Required")
@@ -434,7 +400,6 @@ else:
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
-                            
                             safe_add_rows(ws_inv, rows)
                             force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
@@ -447,7 +412,6 @@ else:
                         sel = st.selectbox("Select", match['SERIAL'].tolist())
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
-                        
                         c1, c2 = st.columns(2)
                         with c1:
                             with st.form("upd"):
