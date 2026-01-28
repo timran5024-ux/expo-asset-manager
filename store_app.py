@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
@@ -9,16 +10,15 @@ import plotly.express as px
 from PIL import Image
 
 # ==========================================
-# 1. PAGE SETUP
+# 1. PAGE CONFIG
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide")
 
+# CSS
 st.markdown("""
 <style>
     div[data-testid="stForm"] {background: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #cfaa5e;}
-    .status-badge {padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8em;}
-    .online {background-color: #d4edda; color: #155724;}
-    .offline {background-color: #f8d7da; color: #721c24;}
+    .stButton>button {width: 100%; border-radius: 5px; font-weight: 600;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,38 +37,34 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 3. CONNECTION HANDLER
+# 3. CONNECTION (JSON METHOD)
 # ==========================================
 @st.cache_resource
 def get_client():
     try:
-        # 1. Load Secrets
-        if "gcp_service_account" not in st.secrets:
+        # METHOD: RAW JSON STRING
+        # We look for the variable 'service_account_json' in secrets
+        if "service_account_json" in st.secrets:
+            # Parse the JSON string directly
+            creds_dict = json.loads(st.secrets["service_account_json"])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+            client = gspread.authorize(creds)
+            return client, "Online"
+        
+        # Fallback to old method (just in case)
+        elif "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            if "private_key" in creds_dict:
+                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip('"')
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+            client = gspread.authorize(creds)
+            return client, "Online"
+
+        else:
             return None, "Secrets Missing"
 
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        
-        # 2. FIX KEYS
-        if "private_key" in creds_dict:
-            key = creds_dict["private_key"]
-            key = key.strip('"').strip("'")
-            if "\\n" in key: key = key.replace("\\n", "\n")
-            creds_dict["private_key"] = key
-
-        # 3. ATTEMPT CONNECTION
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
-        client = gspread.authorize(creds)
-        
-        # 4. VERIFY CONNECTION (The Real Test)
-        # We try to open the sheet immediately to prove the key works
-        try:
-            client.open_by_key(SHEET_ID)
-            return client, "Online"
-        except Exception as e:
-            return None, f"Key Rejected: {e}"
-            
     except Exception as e:
-        return None, f"Config Error: {e}"
+        return None, str(e)
 
 def get_sheet_data(worksheet_name):
     client, status = get_client()
@@ -86,7 +82,7 @@ def get_sheet_data(worksheet_name):
     except: return None
 
 # ==========================================
-# 4. DATA LOADER
+# 4. DATA FUNCTIONS
 # ==========================================
 def download_data():
     ws = get_sheet_data("Sheet1")
@@ -106,6 +102,12 @@ def force_sync():
     st.session_state['inventory_df'] = download_data()
 
 def get_timestamp(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Inventory')
+    return output.getvalue()
 
 def get_all_stores(df):
     if df.empty: return FIXED_STORES
@@ -129,10 +131,9 @@ def login_screen():
     st.markdown("<h1 style='text-align: center;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
     
     if "Online" in status:
-        st.markdown(f"<div style='text-align: center;'><span class='status-badge online'>🟢 System Online</span></div>", unsafe_allow_html=True)
+        st.success("🟢 System Online")
     else:
-        st.markdown(f"<div style='text-align: center;'><span class='status-badge offline'>🔴 System Offline: {status}</span></div>", unsafe_allow_html=True)
-        st.warning("⚠️ Connection Failed. Check Streamlit Secrets.")
+        st.error(f"🔴 System Offline: {status}")
 
     t1, t2 = st.tabs(["Technician", "Admin"])
 
@@ -146,11 +147,11 @@ def login_screen():
                 if not users_df.empty: user_list = users_df['Username'].tolist()
         except: pass
         
-        with st.form("tech"):
+        with st.form("tech_login"):
             if user_list:
                 u = st.selectbox("Username", user_list)
                 p = st.text_input("PIN", type="password")
-                if st.form_submit_button("Login"):
+                if st.form_submit_button("Sign In"):
                     row = users_df[users_df['Username']==u].iloc[0]
                     if str(row['PIN']) == str(p):
                         st.session_state['logged_in'] = True
@@ -162,7 +163,7 @@ def login_screen():
                     else: st.error("Wrong PIN")
             else:
                 st.warning("Users not loaded.")
-                st.form_submit_button("Login", disabled=True)
+                st.form_submit_button("Sign In", disabled=True)
 
     with t2:
         st.write("### Admin Access")
@@ -183,20 +184,13 @@ def login_screen():
 if not st.session_state['logged_in']:
     login_screen()
 else:
-    # Sidebar Info
     st.sidebar.title(f"👤 {st.session_state['user']}")
     st.sidebar.caption(f"Role: {st.session_state['role']}")
-    
-    # Check Connection in Sidebar
-    client, status = get_client()
-    if "Online" in status: st.sidebar.success("🟢 Online")
-    else: st.sidebar.error("🔴 Offline")
     
     if st.sidebar.button("🔄 Sync"): force_sync(); st.rerun()
     if st.sidebar.button("Logout"): st.session_state['logged_in'] = False; st.rerun()
     st.sidebar.divider()
     
-    # Load Data
     if 'inventory_df' not in st.session_state: st.session_state['inventory_df'] = download_data()
     df = st.session_state['inventory_df']
     ws_inv = get_sheet_data("Sheet1")
@@ -320,3 +314,4 @@ else:
         elif nav == "Database":
             st.title("📦 Database")
             st.dataframe(df, use_container_width=True)
+            st.download_button("Export", to_excel(df), "inv.xlsx")
