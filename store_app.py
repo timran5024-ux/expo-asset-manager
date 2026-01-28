@@ -10,7 +10,7 @@ import os
 import base64
 
 # ==========================================
-# 1. EXECUTIVE THEME ENGINE (V170)
+# 1. EXECUTIVE THEME ENGINE (V171)
 # ==========================================
 st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="expanded")
 
@@ -84,11 +84,16 @@ def get_client():
 def get_ws(name):
     sh = get_client().open_by_key(SHEET_ID)
     try: return sh.worksheet(name)
-    except: return sh.sheet1
+    except:
+        # Create sheet if missing to prevent blank pages
+        if name == "Users":
+            new_ws = sh.add_worksheet(title="Users", rows="100", cols="20")
+            new_ws.append_row(["Username", "PIN", "Permission"])
+            return new_ws
+        return sh.sheet1
 
 def load_data():
     ws = get_ws("Sheet1")
-    if not ws: return pd.DataFrame()
     vals = ws.get_all_values()
     return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
 
@@ -99,9 +104,9 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown('<br><br>', unsafe_allow_html=True)
     c1, mid, c3 = st.columns([1, 1.4, 1])
     with mid:
+        st.markdown('<br><br>', unsafe_allow_html=True)
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         if os.path.exists("logo.png"): st.image("logo.png", width=120)
         mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
@@ -143,21 +148,20 @@ else:
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Hardware Summary</p>
+                <p class="metric-title">Security Summary</p>
                 <p class="hw-count">📹 Cameras: {c_cam}</p>
-                <p class="hw-count">💳 Card Readers: {c_rdr}</p>
-                <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
+                <p class="hw-count">💳 Readers: {c_rdr}</p>
+                <p class="hw-count">🖥️ Panels: {c_pnl}</p>
                 <p class="hw-count">🧲 Mag Locks: {c_lck}</p>
             </div>""", unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        st.markdown("### Global Condition Breakdown")
         clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
         fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
         fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True, key="dashboard_pie")
+        st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- ASSET CONTROL ---
@@ -166,18 +170,10 @@ else:
         t1, t2, t3 = st.tabs(["Add Asset", "Modify", "Delete"])
         
         with t1:
-            st.markdown("### Manual Asset Registration")
-            # Dynamic Asset Type Logic
-            existing_types = sorted(df['ASSET TYPE'].unique().tolist()) if not df.empty else []
-            existing_types = [t for t in existing_types if t] + ["+ ADD NEW TYPE"]
-            
+            st.markdown("### Manual Registration")
             with st.form("manual_add"):
                 c1, c2, c3 = st.columns(3)
-                sel_type = c1.selectbox("Asset Type", existing_types)
-                new_type = ""
-                if sel_type == "+ ADD NEW TYPE":
-                    new_type = st.text_input("Type Manually", placeholder="e.g. Smart Lock")
-                
+                final_at = c1.text_input("Asset Type (Manual)", placeholder="e.g. Smart Lock")
                 br = c2.text_input("Brand")
                 md = c3.text_input("Model Number")
                 sn = c1.text_input("Serial Number (SN)")
@@ -186,35 +182,28 @@ else:
                 stat = st.selectbox("Current Status", ["Available/New", "Available/Used", "Faulty"])
                 
                 if st.form_submit_button("REGISTER ASSET"):
-                    final_type = new_type if sel_type == "+ ADD NEW TYPE" else sel_type
-                    if sn and final_type:
-                        ws_inv.append_row([final_type, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
-                        st.success(f"Asset {sn} Registered!"); time.sleep(1); st.rerun()
+                    if sn and final_at:
+                        ws_inv.append_row([final_at, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                        st.success(f"{final_at} Registered!"); time.sleep(1); st.rerun()
                     else: st.error("Serial and Asset Type are Required")
 
         with t2:
-            st.markdown("### Modify Asset")
-            s_sn = st.text_input("Search SN to Modify")
+            s_sn = st.text_input("SN to Modify")
             if s_sn:
-                match = df[df['SERIAL'].astype(str).str.upper() == s_sn.strip().upper()]
+                match = df[df['SERIAL'] == s_sn]
                 if not match.empty:
                     item = match.iloc[0]
                     with st.form("mod_f"):
-                        c1, c2 = st.columns(2)
-                        n_br = c1.text_input("Brand", value=item['BRAND'])
-                        n_md = c2.text_input("Model", value=item['MODEL'])
-                        n_mc = c1.text_input("MAC", value=item['MAC ADDRESS'])
-                        n_lo = c2.selectbox("Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
+                        n_br = st.text_input("Brand", value=item['BRAND'])
+                        n_md = st.text_input("Model", value=item['MODEL'])
                         n_st = st.selectbox("Status", ["Available/New", "Available/Used", "Issued", "Faulty"])
                         if st.form_submit_button("UPDATE"):
                             ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
-                            ws_inv.update_cell(ridx, 2, n_br); ws_inv.update_cell(ridx, 3, n_md)
-                            ws_inv.update_cell(ridx, 5, n_mc); ws_inv.update_cell(ridx, 6, n_st); ws_inv.update_cell(ridx, 7, n_lo)
+                            ws_inv.update_cell(ridx, 2, n_br); ws_inv.update_cell(ridx, 3, n_md); ws_inv.update_cell(ridx, 6, n_st)
                             st.success("Updated!"); time.sleep(1); st.rerun()
 
         with t3:
-            st.markdown("### Decommission")
-            d_sn = st.text_input("SN to REMOVE")
+            d_sn = st.text_input("SN to DELETE")
             if d_sn and st.button("CONFIRM DELETE"):
                 idx = df.index[df['SERIAL'] == d_sn]
                 if not idx.empty:
@@ -222,9 +211,43 @@ else:
                     st.success("Deleted!"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # --- USER MANAGER (REPAIRED) ---
+    elif nav == "USER MANAGER":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        ws_u = get_ws("Users")
+        user_records = ws_u.get_all_records()
+        udf = pd.DataFrame(user_records) if user_records else pd.DataFrame(columns=["Username", "PIN", "Permission"])
+        
+        st.markdown("### Active Personnel")
+        st.dataframe(udf, use_container_width=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.form("u_new"):
+                st.write("**Add Technician**")
+                un = st.text_input("Name")
+                up = st.text_input("PIN Code")
+                if st.form_submit_button("CREATE"):
+                    ws_u.append_row([un, up, "Standard"])
+                    st.success("User Created"); time.sleep(1); st.rerun()
+        with c2:
+            if not udf.empty:
+                st.write("**Manage Access**")
+                target = st.selectbox("Select User", udf['Username'].tolist())
+                new_perm = st.selectbox("Level", ["Standard", "Bulk_Allowed"])
+                col1, col2 = st.columns(2)
+                if col1.button("SAVE PERM"):
+                    cell = ws_u.find(target)
+                    ws_u.update_cell(cell.row, 3, new_perm)
+                    st.success("Updated")
+                if col2.button("DELETE USER"):
+                    ws_u.delete_rows(ws_u.find(target).row)
+                    st.success("Deleted"); time.sleep(1); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        q = st.text_input("🔍 Filter Database")
+        q = st.text_input("🔍 Search Database")
         f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
         st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
