@@ -290,7 +290,7 @@ else:
        
         # Excel Download
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             filtered_df.to_excel(writer, index=False, sheet_name='Assets')
         output.seek(0)
         st.download_button(
