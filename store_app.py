@@ -11,333 +11,107 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. FORCED HIGH-VISIBILITY CSS (V146)
+# 1. CLEAN ENTERPRISE INTERFACE (V149)
 # ==========================================
-st.set_page_config(
-    page_title="Asset Management Pro", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="collapsed")
 
-def get_base64_bin(file_path):
-    with open(file_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-# Background Pattern Logic
-bg_css = ""
+# Simple Background Overlay Logic
 if os.path.exists("logo.png"):
-    try:
-        bin_str = get_base64_bin("logo.png")
-        bg_css = f"""
+    with open("logo.png", "rb") as f:
+        bin_str = base64.b64encode(f.read()).decode()
+    st.markdown(f"""
+    <style>
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
-            background-repeat: no-repeat;
+            background-size: cover;
             background-attachment: fixed;
-            background-position: center;
-            background-size: cover; 
         }}
         .stApp::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255, 255, 255, 0.94); 
-            z-index: -1;
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.96); z-index: -1;
         }}
-        """
-    except: pass
-
-st.markdown(f"""
-<style>
-    {bg_css}
-    header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; height: 0 !important; }}
-    
-    /* 1. GLOBAL TEXT - PURE BLACK & BOLD */
-    html, body, [class*="ViewContainer"], .stText, label, p {{
-        font-weight: 800 !important;
-        color: #000000 !important;
-    }}
-
-    .main .block-container {{ 
-        padding: 2.5rem !important; 
-        max-width: 100% !important; 
-    }}
-
-    .centered-title {{
-        text-align: center;
-        color: #000000 !important;
-        font-size: 40px;
-        font-weight: 900 !important;
-        letter-spacing: 2px;
-        margin-bottom: 40px;
-        text-transform: uppercase;
-    }}
-
-    /* 2. INPUT BOXES - SPACIOUS & ALIGNED */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stNumberInput input {{
-        background-color: #FFFFFF !important;
-        border: 3px solid #000000 !important;
-        border-radius: 12px !important;
-        height: 60px !important;
-        color: #000000 !important;
-        font-size: 18px !important;
-        padding: 0 20px !important; /* Forces text away from borders */
-        font-weight: 800 !important;
-    }}
-
-    /* 3. BUTTONS - TOTAL TEXT VISIBILITY FIX */
-    /* This targets every possible text container inside a button */
-    button[kind="secondaryFormSubmit"], .stButton > button {{
-        background-color: #000000 !important;
-        border: 3px solid #000000 !important;
-        border-radius: 12px !important;
-        height: 60px !important;
-        width: 100% !important;
-    }}
-
-    /* THE MAGIC: Force text inside buttons to be white */
-    .stButton > button div[data-testid="stMarkdownContainer"] p, 
-    .stButton > button p, 
-    .stButton > button span,
-    .stButton > button div {{
-        color: #FFFFFF !important; /* FORCED WHITE */
-        font-weight: 900 !important;
-        font-size: 18px !important;
-    }}
-
-    /* Action Overrides */
-    button[key="final_refresh_btn"] {{ background-color: #007BFF !important; border-color: #0056b3 !important; }}
-    button[key="final_logout_btn"] {{ background-color: #FF4B4B !important; border-color: #bd2130 !important; }}
-
-    /* 4. DASHBOARD CARDS - SOLID WHITE */
-    div[data-testid="column"] > div {{
-        background-color: #FFFFFF !important;
-        border: 3px solid #000000 !important;
-        border-radius: 20px !important;
-        padding: 30px !important;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
-    }}
-    
-    /* Tab Styling Visibility */
-    button[data-baseweb="tab"] p {{
-        font-size: 18px !important;
-        color: #000000 !important;
-        font-weight: 900 !important;
-    }}
-</style>
-""", unsafe_allow_html=True)
+        /* Ensure all text is BOLD for visibility */
+        * {{ font-weight: 700 !important; }}
+        .stButton>button {{ border-radius: 10px !important; height: 50px !important; font-weight: 800 !important; }}
+    </style>
+    """, unsafe_allow_html=True)
 
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
-SESSION_SECRET = "expo_final_v146_fix"
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-HEADERS = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"]
+SESSION_SECRET = "expo_final_v149_clean"
 
 # ==========================================
-# 2. CORE ENGINE
+# 2. CORE UTILITIES
 # ==========================================
 def make_token(u): return hashlib.sha256(f"{u}{SESSION_SECRET}".encode()).hexdigest()
 
 @st.cache_resource
 def get_client():
-    try:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip('"')
-        return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE))
-    except: return None
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip('"')
+    return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]))
 
 def get_ws(name):
-    client = get_client()
-    if not client: return None
-    try:
-        sh = client.open_by_key(SHEET_ID)
-        return sh.worksheet(name)
-    except: return client.open_by_key(SHEET_ID).sheet1
+    sh = get_client().open_by_key(SHEET_ID)
+    try: return sh.worksheet(name)
+    except: return sh.sheet1
 
 def load_data():
     ws = get_ws("Sheet1")
-    if not ws: return pd.DataFrame(columns=HEADERS)
     vals = ws.get_all_values()
-    if len(vals) < 2: return pd.DataFrame(columns=HEADERS)
-    return pd.DataFrame(vals[1:], columns=HEADERS)
-
-def sync():
-    st.session_state['inventory_df'] = load_data()
-
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Inventory')
-    return output.getvalue()
+    return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
 
 # ==========================================
-# 3. AUTHENTICATION
+# 3. APP LOGIC
 # ==========================================
 if 'logged_in' not in st.session_state:
-    p = st.query_params
-    u, t = p.get("user"), p.get("token")
-    if u and t and t == make_token(u):
-        st.session_state.update(logged_in=True, user=u, role="Admin" if u=="Administrator" else "Technician")
-    else: st.session_state['logged_in'] = False
+    st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown("<br><br><h1 style='text-align: center; color: #000000; font-weight: 900;'>ASSET MANAGEMENT PRO</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 1.8, 1])
+    st.markdown("<h1 style='text-align: center;'>ASSET MANAGEMENT LOGIN</h1>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
-        tabs = st.tabs(["TECHNICIAN", "ADMINISTRATOR"])
-        with tabs[0]:
-            with st.form("t_login"):
-                u = st.text_input("Username")
-                p = st.text_input("PIN", type="password")
-                if st.form_submit_button("LOGIN"):
-                    ws_u = get_ws("Users")
-                    if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
-                        st.session_state.update(logged_in=True, user=u, role="Technician")
-                        st.query_params.update(user=u, token=make_token(u))
-                        st.rerun()
-                    else: st.error("Access Denied")
-        with tabs[1]:
-            with st.form("a_log"):
-                p = st.text_input("Master Password", type="password")
-                if st.form_submit_button("ADMIN ACCESS"):
-                    if p == ADMIN_PASSWORD:
-                        st.session_state.update(logged_in=True, user="Administrator", role="Admin")
-                        st.query_params.update(user="Administrator", token=make_token("Administrator"))
-                        st.rerun()
-                    else: st.error("Invalid")
+        u = st.text_input("Username")
+        p = st.text_input("PIN", type="password")
+        if st.button("LOGIN", use_container_width=True):
+            ws_u = get_ws("Users")
+            if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
+                st.session_state.update(logged_in=True, user=u)
+                st.rerun()
+            else: st.error("Invalid Login")
 else:
-    if 'inventory_df' not in st.session_state: sync()
+    if 'inventory_df' not in st.session_state: st.session_state['inventory_df'] = load_data()
     df = st.session_state['inventory_df']
-    ws_inv = get_ws("Sheet1")
-
-    # HEADER
-    st.markdown('<div class="centered-title">Asset Management</div>', unsafe_allow_html=True)
     
-    h_nav, h_user, h_sync, h_out = st.columns([4, 2, 1, 1])
-    with h_nav:
-        opts = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["ISSUE ASSET", "RETURN ASSET", "REGISTER ASSET", "MY VIEW"]
-        nav = st.selectbox("", opts, label_visibility="collapsed")
-    with h_user: st.markdown(f'<div style="background-color:white; border:3px solid black; padding:12px; border-radius:12px; text-align:center;">👤 <b>{st.session_state["user"]}</b></div>', unsafe_allow_html=True)
-    with h_sync:
-        if st.button("GET DATA", key="final_refresh_btn", use_container_width=True): sync(); st.rerun()
-    with h_out:
-        if st.button("LOGOUT", key="final_logout_btn", use_container_width=True): st.session_state.clear(); st.query_params.clear(); st.rerun()
-    st.markdown("<hr style='margin: 20px 0; border: 3px solid #000000;'>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center;'>Asset Management</h1>", unsafe_allow_html=True)
+    
+    # Nav Bar
+    nav_cols = st.columns([4, 1, 1])
+    nav = nav_cols[0].selectbox("", ["DASHBOARD", "ASSET CONTROL", "DATABASE"], label_visibility="collapsed")
+    if nav_cols[1].button("SYNC", use_container_width=True):
+        st.session_state['inventory_df'] = load_data()
+        st.rerun()
+    if nav_cols[2].button("LOGOUT", use_container_width=True):
+        st.session_state.clear(); st.rerun()
 
-    # PAGE ROUTING
     if nav == "DASHBOARD":
-        st.markdown("### 📊 Stock Analytics")
-        clr_map = {"Available/New": "#1E7E34", "Available/Used": "#2E8B57", "Issued": "#0056b3", "Faulty": "#bd2130"}
+        st.subheader("Inventory Metrics")
         if not df.empty:
-            models = sorted([m for m in df['MODEL'].unique() if m.strip() != ""])
-            grid = st.columns(3)
-            for i, model in enumerate(models):
-                sub = df[df['MODEL'] == model]
-                t, a, s, f = len(sub), len(sub[sub['CONDITION'].str.contains('Available', na=False)]), len(sub[sub['CONDITION'] == 'Issued']), len(sub[sub['CONDITION'] == 'Faulty'])
-                with grid[i % 3]:
-                    st.markdown(f"<div style='text-align:center;'><b style='font-size:1.6rem;'>{model}</b><br><span>Total: {t} Units</span><br><div style='margin-top:10px; font-size:1.1rem;'><span style='color:#1E7E34;'>Avail: {a}</span> | <span style='color:#0056b3;'>Issued: {s}</span> | <span style='color:#bd2130;'>Faulty: {f}</span></div></div>", unsafe_allow_html=True)
-                    fig = px.pie(sub, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
-                    fig.update_layout(showlegend=False, height=260, margin=dict(t=10,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig, use_container_width=True, key=f"dash_v146_{i}")
+            fig = px.pie(df, names='CONDITION', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig, use_container_width=True)
+        else: st.info("No data yet.")
 
-    elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
-        st.markdown("### 🛠️ Global Asset Control")
-        t1, t2, t3 = st.tabs(["➕ Add Asset", "📝 Modify Info", "❌ Delete Permanent"])
-        with t1:
-            with st.form("f_add"):
-                c1, c2, c3 = st.columns(3)
-                at, br, md = c1.text_input("Asset Type"), c2.text_input("Brand Name"), c3.text_input("Model No.")
-                sn, mc = c1.text_input("Serial Number"), c2.text_input("MAC Addr.")
-                lo = c3.selectbox("Store Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"], key="st_add")
-                if st.form_submit_button("COMMIT TO DATABASE"):
-                    if sn:
-                        ws_inv.append_row([at, br, md, sn, mc, "Available/New", lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
-                        st.success("DONE"); time.sleep(1); sync(); st.rerun()
-                    else: st.error("Serial Required")
-        with t2:
-            s_sn = st.text_input("Search Serial to Edit")
-            if s_sn:
-                match = df[df['SERIAL'].astype(str).str.upper() == s_sn.strip().upper()]
-                if not match.empty:
-                    item = match.iloc[0]
-                    with st.form("f_mod"):
-                        n_br, n_md = st.text_input("Brand", value=item['BRAND']), st.text_input("Model", value=item['MODEL'])
-                        n_mc = st.text_input("MAC", value=item['MAC ADDRESS'])
-                        n_lo = st.selectbox("Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"], key="st_mod")
-                        if st.form_submit_button("UPDATE ASSET INFO"):
-                            ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
-                            ws_inv.update(f"B{ridx}:C{ridx}", [[n_br, n_md]])
-                            ws_inv.update_cell(ridx, 5, n_mc); ws_inv.update_cell(ridx, 7, n_lo)
-                            st.success("DONE"); time.sleep(1); sync(); st.rerun()
-        with t3:
-            r_sn = st.text_input("Search Serial to Remove")
-            if r_sn:
-                match = df[df['SERIAL'].astype(str).str.upper() == r_sn.strip().upper()]
-                if not match.empty:
-                    st.error(f"Deleting {match.iloc[0]['MODEL']}")
-                    if st.button("CONFIRM PERMANENT DELETE", use_container_width=True):
-                        ws_inv.delete_rows(int(df.index[df['SERIAL'] == r_sn][0]) + 2)
-                        st.success("DONE"); time.sleep(1); sync(); st.rerun()
+    elif nav == "ASSET CONTROL":
+        st.subheader("Register New Asset")
+        with st.form("add_form"):
+            c1, c2 = st.columns(2)
+            at = c1.text_input("Type")
+            sn = c2.text_input("Serial")
+            if st.form_submit_button("REGISTER"):
+                get_ws("Sheet1").append_row([at, "", "", sn, "", "Available/New", "STORE-10", "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                st.success("Registered!"); time.sleep(1); st.rerun()
 
     elif nav == "DATABASE":
-        st.markdown("### 📦 Master Inventory")
-        col_s, col_dl = st.columns([4, 2])
-        with col_s: q = st.text_input("🔍 Filter Database...", placeholder="Type serial, model or brand...")
-        with col_dl: 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button("📥 DOWNLOAD EXCEL", to_excel(df), "inventory_master.xlsx", use_container_width=True)
-        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
-        st.dataframe(f_df, use_container_width=True)
-
-    elif nav == "USER MANAGER":
-        st.markdown("### 👤 Administrator User Tools")
-        ws_u = get_ws("Users")
-        if ws_u:
-            udf = pd.DataFrame(ws_u.get_all_records())
-            st.dataframe(udf, use_container_width=True)
-            u_t1, u_t2 = st.tabs(["Manage Users", "Permissions"])
-            with u_t1:
-                with st.form("u_add"):
-                    un, up = st.text_input("Username"), st.text_input("PIN Code")
-                    if st.form_submit_button("CREATE USER ACCOUNT"):
-                        ws_u.append_row([un, up, "Standard"])
-                        st.success("DONE"); time.sleep(1); st.rerun()
-                target = st.selectbox("Select Account for Removal", udf['Username'].tolist() if not udf.empty else ["-"])
-                if st.button("DELETE ACCESS PERMANENTLY", use_container_width=True) and target != "-":
-                    ws_u.delete_rows(ws_u.find(target).row)
-                    st.success("DONE"); time.sleep(1); st.rerun()
-            with u_t2:
-                if not udf.empty:
-                    target_p = st.selectbox("Update Level for", udf['Username'].tolist())
-                    new_perm = st.selectbox("New Level", ["Standard", "Bulk_Allowed"])
-                    if st.button("SAVE PERMISSION CHANGE", use_container_width=True):
-                        cell = ws_u.find(target_p)
-                        ws_u.update_cell(cell.row, 3, new_perm)
-                        st.success("DONE"); time.sleep(1); st.rerun()
-
-    elif nav == "ISSUE ASSET":
-        with st.form("iss_f"):
-            st.markdown("### 🚀 Asset Issue")
-            sn, tkt = st.text_input("Serial Number"), st.text_input("Ticket ID")
-            if st.form_submit_button("AUTHORIZE & ISSUE"):
-                idx = df.index[df['SERIAL'] == sn]
-                if not idx.empty:
-                    ws_inv.update_cell(int(idx[0])+2, 6, "Issued")
-                    ws_inv.update_cell(int(idx[0])+2, 8, st.session_state['user'])
-                    ws_inv.update_cell(int(idx[0])+2, 9, tkt)
-                    st.success("DONE"); time.sleep(1); sync(); st.rerun()
-                else: st.error("Serial not found")
-
-    elif nav == "RETURN ASSET":
-        st.markdown("### 📥 Asset Return")
-        my_df = df[df['ISSUED TO'] == st.session_state['user']]
-        if not my_df.empty:
-            target = st.selectbox("Select Asset", my_df['SERIAL'].tolist())
-            with st.form("ret_form"):
-                cond = st.selectbox("Condition Upon Return", ["Available/New", "Available/Used", "Faulty"])
-                if st.form_submit_button("COMPLETE RETURN"):
-                    ridx = int(df.index[df['SERIAL'] == target][0]) + 2
-                    ws_inv.update_cell(ridx, 6, cond); ws_inv.update_cell(ridx, 8, "")
-                    st.success("DONE"); time.sleep(1); sync(); st.rerun()
-        else: st.info("No assets currently issued to your account.")
+        st.subheader("Master Record")
+        st.dataframe(df, use_container_width=True)
