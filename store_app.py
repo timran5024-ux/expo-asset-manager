@@ -27,7 +27,7 @@ ADMIN_PASSWORD = "admin123"
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# EXPECTED HEADERS (Based on your Yellow Picture + System Needs)
+# THE MASTER HEADER LIST (Matches your Yellow Picture + System fields)
 EXPECTED_HEADERS = [
     "ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", 
     "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"
@@ -72,37 +72,47 @@ def get_sheet_data(worksheet_name):
     except: return None
 
 # ==========================================
-# 3. CORE LOGIC (FIXED FOR KEYERROR)
+# 3. CORE LOGIC (ROBUST DATA LOADER)
 # ==========================================
 def download_data():
     ws = get_sheet_data("Sheet1")
+    # Return empty strict frame if connection fails
     if not ws: return pd.DataFrame(columns=EXPECTED_HEADERS)
+    
     try:
         raw = ws.get_all_values()
-        if not raw: 
-            # If empty, return DataFrame with CORRECT headers to prevent KeyError
-            return pd.DataFrame(columns=EXPECTED_HEADERS)
+        if not raw: return pd.DataFrame(columns=EXPECTED_HEADERS)
         
+        # 1. Raw Headers
         headers = raw[0]
-        # Normalize headers to Uppercase to match code expectations
-        headers = [str(h).strip().upper() for h in headers]
-        
         rows = raw[1:]
-        # Handle duplicates
-        seen = {}; new_headers = []
-        for h in headers:
-            if h in seen: seen[h]+=1; new_headers.append(f"{h}_{seen[h]}")
-            else: seen[h]=0; new_headers.append(h)
-            
-        df = pd.DataFrame(rows, columns=new_headers)
         
-        # SAFETY: Ensure critical columns exist. If not, create them empty.
-        for req in EXPECTED_HEADERS:
-            if req not in df.columns:
-                df[req] = ""
+        # 2. Create DataFrame
+        df = pd.DataFrame(rows, columns=headers)
+        
+        # 3. Normalize Headers (Upper case + Strip)
+        df.columns = [str(c).strip().upper() for c in df.columns]
+        
+        # 4. CRITICAL FIX: Map Old Names to New Names (Prevent KeyError)
+        rename_map = {
+            "SERIAL NUMBER": "SERIAL",
+            "MANUFACTURER": "BRAND",
+            "STATUS": "CONDITION",
+            "MAC": "MAC ADDRESS",
+            "TYPE": "ASSET TYPE",
+            "LOC": "LOCATION"
+        }
+        df.rename(columns=rename_map, inplace=True)
+        
+        # 5. Ensure all EXPECTED headers exist
+        for col in EXPECTED_HEADERS:
+            if col not in df.columns:
+                df[col] = ""
                 
         return df
-    except: return pd.DataFrame(columns=EXPECTED_HEADERS)
+    except Exception as e:
+        st.error(f"Data Load Error: {e}")
+        return pd.DataFrame(columns=EXPECTED_HEADERS)
 
 def force_sync():
     st.session_state['inventory_df'] = download_data()
@@ -113,7 +123,7 @@ def get_all_stores(df):
     valid_stores = set(FIXED_STORES)
     if not df.empty and 'LOCATION' in df.columns:
         for s in df['LOCATION'].unique():
-            if str(s).strip() and str(s).upper() not in ["FAULTY", "USED", "NEW", "AVAILABLE", "ISSUED"]:
+            if str(s).strip() and str(s).upper() not in ["FAULTY", "USED", "NEW", "AVAILABLE", "ISSUED", ""]:
                 valid_stores.add(str(s).strip())
     return sorted(list(valid_stores))
 
@@ -191,7 +201,7 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_sheet_data("Sheet1")
 
-    # Ensure headers are written if sheet is empty
+    # Force headers if empty
     if ws_inv and not ws_inv.get_all_values():
         ws_inv.append_row(EXPECTED_HEADERS)
         force_sync()
@@ -213,7 +223,7 @@ else:
                         except: pass
             
             if search:
-                # SAFETY: Use 'SERIAL' instead of 'Serial Number'
+                # Robust match against 'SERIAL'
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
@@ -223,16 +233,16 @@ else:
                             tkt = st.text_input("Ticket #")
                             if st.form_submit_button("Confirm Issue"):
                                 idx = match.index[0]+2
-                                # Indices based on EXPECTED_HEADERS: 0=Type, 1=Brand, 2=Model, 3=Serial, 4=MAC, 5=Cond, 6=Loc, 7=IssuedTo, 8=Ticket
-                                ws_inv.update_cell(idx, 6, "Issued") # Condition
-                                ws_inv.update_cell(idx, 8, st.session_state['user']) # Issued To
-                                ws_inv.update_cell(idx, 9, tkt) # Ticket
+                                # Mapped to EXPECTED_HEADERS indices:
+                                # 0:TYPE, 1:BRAND, 2:MODEL, 3:SERIAL, 4:MAC, 5:COND, 6:LOC, 7:ISSUED, 8:TICKET
+                                ws_inv.update_cell(idx, 6, "Issued") # Col F (Condition)
+                                ws_inv.update_cell(idx, 8, st.session_state['user']) # Col H (Issued To)
+                                ws_inv.update_cell(idx, 9, tkt) # Col I (Ticket)
                                 force_sync(); st.success("Issued!"); st.rerun()
                     else: st.warning(f"Item is {item['CONDITION']}")
                 else: st.error("Not Found")
 
         elif nav == "📥 Return Asset":
-            # SAFETY: Filter by 'ISSUED TO' and 'CONDITION'
             my = df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')]
             if my.empty: st.info("No returns pending.")
             else:
@@ -243,18 +253,9 @@ else:
                     loc = c2.selectbox("Location", get_all_stores(df))
                     if st.form_submit_button("Return"):
                         idx = df[df['SERIAL']==sel].index[0]+2
-                        ws_inv.update_cell(idx, 6, stat)
-                        ws_inv.update_cell(idx, 8, st.session_state['user'] if stat=="Faulty" else "")
-                        ws_inv.update_cell(idx, 7, loc) # Location index fix (6=Cond, 7=Loc based on standard? No, wait. Use names)
-                        # Let's trust the fixed indices from EXPECTED_HEADERS list:
-                        # 0:TYPE, 1:BRAND, 2:MODEL, 3:SERIAL, 4:MAC, 5:COND, 6:LOC, 7:ISSUED, 8:TICKET
-                        # Update: 6 is Condition (col F), 7 is Location (col G)... wait. 
-                        # Let's map strict column numbers. 
-                        # A=1, B=2, C=3, D=4, E=5, F=6(Condition), G=7(Location), H=8(IssuedTo), I=9(Ticket)
-                        # Re-mapping based on list: [Type, Brand, Model, Serial, Mac, Cond, Loc, Issued, Ticket]
-                        ws_inv.update_cell(idx, 6, stat) # Col F: Condition
-                        ws_inv.update_cell(idx, 7, loc)  # Col G: Location
-                        ws_inv.update_cell(idx, 8, "")   # Col H: Issued To (Clear it)
+                        ws_inv.update_cell(idx, 6, stat) # Condition
+                        ws_inv.update_cell(idx, 7, loc) # Location
+                        ws_inv.update_cell(idx, 8, "") # Issued To (Clear)
                         force_sync(); st.success("Returned!"); st.rerun()
 
         elif nav == "➕ Add Asset":
@@ -311,8 +312,8 @@ else:
             with tab1:
                 with st.form("adm_add"):
                     c1, c2, c3 = st.columns(3)
-                    # Use TEXT INPUT for Asset Type as requested
-                    atype = c1.text_input("Asset Type", placeholder="e.g. Laptop, Drone") 
+                    # Text Input for flexible Asset Type
+                    atype = c1.text_input("Asset Type (e.g. Camera, Laptop)")
                     brand = c2.text_input("Brand")
                     model = c3.text_input("Model")
                     
@@ -326,7 +327,8 @@ else:
                     qty = c8.number_input("Quantity", 1, 100, 1)
                     
                     if st.form_submit_button("Add Asset"):
-                        if not serial and qty == 1: st.error("Serial Required")
+                        if not atype: st.error("Type Required")
+                        elif not serial and qty == 1: st.error("Serial Required")
                         elif serial in df['SERIAL'].astype(str).tolist(): st.error("Duplicate")
                         else:
                             rows = []
