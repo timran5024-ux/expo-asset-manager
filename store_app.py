@@ -18,37 +18,29 @@ st.set_page_config(
 )
 
 # ======================================================
-# LOAD LOGO
+# LOAD LOGO (SAFE)
 # ======================================================
 LOGO_PATH = "logo.png"
 logo = Image.open(LOGO_PATH)
 
 # ======================================================
-# MODERN UI / UX CSS
+# UI STYLES
 # ======================================================
 st.markdown("""
 <style>
 :root {
-    --primary:#2563EB;
-    --dark:#0F172A;
-    --muted:#64748B;
     --bg:#F8FAFC;
     --card:#FFFFFF;
     --border:#E5E7EB;
-    --success:#16A34A;
-    --danger:#DC2626;
+    --dark:#0F172A;
 }
 
-.stApp {
-    background: var(--bg);
-    font-family: 'Inter', system-ui, sans-serif;
-}
-
+.stApp { background: var(--bg); font-family: system-ui; }
 header, footer, #MainMenu { visibility: hidden; }
 
 .block-container {
-    padding-top: 1.5rem !important;
     max-width: 96% !important;
+    padding-top: 1.5rem !important;
 }
 
 .centered-title {
@@ -57,58 +49,33 @@ header, footer, #MainMenu { visibility: hidden; }
     font-weight: 900;
     color: var(--dark);
     margin-bottom: 30px;
-    letter-spacing: 1px;
 }
 
 .logo-box {
     display: flex;
     justify-content: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 div[data-testid="column"] {
     background: var(--card);
-    border-radius: 18px;
+    border-radius: 16px;
     border: 1px solid var(--border);
-    padding: 22px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.05);
-    transition: all .3s ease;
-}
-
-div[data-testid="column"]:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-}
-
-.stTextInput input,
-.stSelectbox div[data-baseweb="select"] {
-    border-radius: 14px !important;
-    height: 46px !important;
-    border: 1px solid var(--border) !important;
+    padding: 18px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.05);
 }
 
 .stButton button {
-    border-radius: 14px;
     height: 46px;
-    font-weight: 800;
-}
-
-button[key="final_refresh_btn"] {
-    background: linear-gradient(135deg,#2563EB,#1D4ED8);
-    color: white;
-}
-
-button[key="final_logout_btn"] {
-    background: linear-gradient(135deg,#DC2626,#B91C1C);
-    color: white;
+    border-radius: 12px;
+    font-weight: 700;
 }
 
 .profile-box {
-    background: linear-gradient(135deg,#0F172A,#1E293B);
+    background: #111827;
     color: white;
     border-radius: 999px;
     height: 46px;
-    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -141,7 +108,7 @@ def make_token(u):
 @st.cache_resource
 def get_client():
     creds = dict(st.secrets["gcp_service_account"])
-    creds["private_key"] = creds["private_key"].replace("\\n","\n")
+    creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     return gspread.authorize(
         ServiceAccountCredentials.from_json_keyfile_dict(creds, SCOPE)
     )
@@ -170,7 +137,7 @@ if "logged_in" not in st.session_state:
         st.session_state.update(
             logged_in=True,
             user=p.get("user"),
-            role="Admin" if p.get("user")=="Administrator" else "Technician"
+            role="Admin" if p.get("user") == "Administrator" else "Technician"
         )
     else:
         st.session_state["logged_in"] = False
@@ -185,29 +152,29 @@ if not st.session_state["logged_in"]:
 
     st.markdown("<div class='centered-title'>ASSET MANAGEMENT PRO</div>", unsafe_allow_html=True)
 
-    c1,c2,c3 = st.columns([1,1.4,1])
+    c1, c2, c3 = st.columns([1, 1.4, 1])
     with c2:
-        tabs = st.tabs(["TECHNICIAN","ADMIN"])
+        tabs = st.tabs(["TECHNICIAN", "ADMIN"])
         with tabs[0]:
-            with st.form("tlogin"):
+            with st.form("tech_login"):
                 u = st.text_input("Username")
                 p = st.text_input("PIN", type="password")
                 if st.form_submit_button("LOGIN"):
                     users = get_ws("Users").get_all_records()
-                    if any(x["Username"]==u and str(x["PIN"])==p for x in users):
-                        st.session_state.update(logged_in=True,user=u,role="Technician")
-                        st.query_params.update(user=u,token=make_token(u))
+                    if any(x["Username"] == u and str(x["PIN"]) == p for x in users):
+                        st.session_state.update(logged_in=True, user=u, role="Technician")
+                        st.query_params.update(user=u, token=make_token(u))
                         st.rerun()
                     else:
                         st.error("Access Denied")
 
         with tabs[1]:
-            with st.form("alogin"):
+            with st.form("admin_login"):
                 p = st.text_input("Admin Password", type="password")
                 if st.form_submit_button("LOGIN"):
                     if p == ADMIN_PASSWORD:
-                        st.session_state.update(logged_in=True,user="Administrator",role="Admin")
-                        st.query_params.update(user="Administrator",token=make_token("Administrator"))
+                        st.session_state.update(logged_in=True, user="Administrator", role="Admin")
+                        st.query_params.update(user="Administrator", token=make_token("Administrator"))
                         st.rerun()
                     else:
                         st.error("Invalid Password")
@@ -220,7 +187,6 @@ else:
         sync()
 
     df = st.session_state["inventory_df"]
-    ws_inv = get_ws("Sheet1")
 
     st.markdown('<div class="logo-box">', unsafe_allow_html=True)
     st.image(logo, width=80)
@@ -228,4 +194,62 @@ else:
 
     st.markdown("<div class='centered-title'>Asset Management</div>", unsafe_allow_html=True)
 
-    h1,h2,h3,h4
+    # 🔴 FIXED HEADER LINE (NO ERROR)
+    h1, h2, h3, h4 = st.columns([4, 2, 1, 1])
+
+    with h1:
+        nav = st.selectbox(
+            "",
+            ["DASHBOARD", "DATABASE"]
+            if st.session_state["role"] == "Admin"
+            else ["ISSUE ASSET", "RETURN ASSET"],
+            label_visibility="collapsed"
+        )
+
+    with h2:
+        st.markdown(
+            f"<div class='profile-box'>👤 {st.session_state['user']}</div>",
+            unsafe_allow_html=True
+        )
+
+    with h3:
+        if st.button("SYNC"):
+            sync()
+            st.rerun()
+
+    with h4:
+        if st.button("LOGOUT"):
+            st.session_state.clear()
+            st.query_params.clear()
+            st.rerun()
+
+    st.divider()
+
+    # ==================================================
+    # DATABASE
+    # ==================================================
+    if nav == "DATABASE":
+        st.markdown("## 📦 Inventory Database")
+        st.dataframe(df, use_container_width=True, height=520)
+
+    # ==================================================
+    # ISSUE ASSET
+    # ==================================================
+    if nav == "ISSUE ASSET":
+        with st.form("issue"):
+            sn = st.text_input("Serial Number")
+            tk = st.text_input("Ticket ID")
+            if st.form_submit_button("ISSUE"):
+                idx = df.index[df["SERIAL"] == sn]
+                if not idx.empty:
+                    ws = get_ws("Sheet1")
+                    r = int(idx[0]) + 2
+                    ws.update_cell(r, 6, "Issued")
+                    ws.update_cell(r, 8, st.session_state["user"])
+                    ws.update_cell(r, 9, tk)
+                    st.success("Asset Issued Successfully")
+                    time.sleep(1)
+                    sync()
+                    st.rerun()
+                else:
+                    st.error("Serial Not Found")
