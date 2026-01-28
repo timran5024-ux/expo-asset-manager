@@ -10,7 +10,7 @@ import os
 import base64
 
 # ==========================================
-# 1. EXECUTIVE THEME ENGINE (V169)
+# 1. EXECUTIVE THEME ENGINE (V170)
 # ==========================================
 st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="expanded")
 
@@ -55,7 +55,7 @@ st.markdown(f"""
     }}
 
     .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; margin-bottom: 10px; }}
-    .hw-count {{ font-size: 14px; font-weight: 700; color: #111827; margin: 3px 0; }}
+    .hw-count {{ font-size: 14px; font-weight: 700; color: #111827; margin: 3px 0; text-align: left; }}
     .metric-value {{ font-size: 38px; font-weight: 900; }}
 
     div.stButton > button {{
@@ -99,7 +99,6 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    # Standard Sign-in Logic
     st.markdown('<br><br>', unsafe_allow_html=True)
     c1, mid, c3 = st.columns([1, 1.4, 1])
     with mid:
@@ -113,7 +112,11 @@ if not st.session_state['logged_in']:
                 if mode == "Admin" and p == ADMIN_PASSWORD:
                     st.session_state.update(logged_in=True, user="Administrator", role="Admin")
                     st.rerun()
-                # Technician logic...
+                elif mode == "Technician":
+                    ws_u = get_ws("Users")
+                    if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
+                        st.session_state.update(logged_in=True, user=u, role="Technician")
+                        st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     df = load_data()
@@ -140,7 +143,7 @@ else:
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Inventory Summary</p>
+                <p class="metric-title">Security Hardware Summary</p>
                 <p class="hw-count">📹 Cameras: {c_cam}</p>
                 <p class="hw-count">💳 Card Readers: {c_rdr}</p>
                 <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
@@ -150,22 +153,31 @@ else:
         with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        st.markdown("### Global Condition Breakdown")
         clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
         fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
         fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="dashboard_pie")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- ASSET CONTROL (FULL ADMINISTRATIVE POWER) ---
+    # --- ASSET CONTROL ---
     elif nav == "ASSET CONTROL":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        t1, t2, t3 = st.tabs(["➕ Add Asset", "📝 Modify Asset", "❌ Decommission"])
+        t1, t2, t3 = st.tabs(["Add Asset", "Modify", "Delete"])
         
         with t1:
+            st.markdown("### Manual Asset Registration")
+            # Dynamic Asset Type Logic
+            existing_types = sorted(df['ASSET TYPE'].unique().tolist()) if not df.empty else []
+            existing_types = [t for t in existing_types if t] + ["+ ADD NEW TYPE"]
+            
             with st.form("manual_add"):
-                st.markdown("### Manual Asset Registration")
                 c1, c2, c3 = st.columns(3)
-                at = c1.selectbox("Asset Type", ["Camera", "Card Reader", "Access Control Panel", "Magnetic Lock", "Other"])
+                sel_type = c1.selectbox("Asset Type", existing_types)
+                new_type = ""
+                if sel_type == "+ ADD NEW TYPE":
+                    new_type = st.text_input("Type Manually", placeholder="e.g. Smart Lock")
+                
                 br = c2.text_input("Brand")
                 md = c3.text_input("Model Number")
                 sn = c1.text_input("Serial Number (SN)")
@@ -174,48 +186,45 @@ else:
                 stat = st.selectbox("Current Status", ["Available/New", "Available/Used", "Faulty"])
                 
                 if st.form_submit_button("REGISTER ASSET"):
-                    if sn:
-                        ws_inv.append_row([at, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
-                        st.success(f"Asset {sn} Added!"); time.sleep(1); st.rerun()
-                    else: st.error("Serial Number is Required")
+                    final_type = new_type if sel_type == "+ ADD NEW TYPE" else sel_type
+                    if sn and final_type:
+                        ws_inv.append_row([final_type, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                        st.success(f"Asset {sn} Registered!"); time.sleep(1); st.rerun()
+                    else: st.error("Serial and Asset Type are Required")
 
         with t2:
-            st.markdown("### Search & Modify Existing Asset")
-            s_sn = st.text_input("Enter Serial Number to Modify")
+            st.markdown("### Modify Asset")
+            s_sn = st.text_input("Search SN to Modify")
             if s_sn:
                 match = df[df['SERIAL'].astype(str).str.upper() == s_sn.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
-                    with st.form("mod_form"):
+                    with st.form("mod_f"):
                         c1, c2 = st.columns(2)
                         n_br = c1.text_input("Brand", value=item['BRAND'])
                         n_md = c2.text_input("Model", value=item['MODEL'])
-                        n_mc = c1.text_input("MAC Address", value=item['MAC ADDRESS'])
+                        n_mc = c1.text_input("MAC", value=item['MAC ADDRESS'])
                         n_lo = c2.selectbox("Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
                         n_st = st.selectbox("Status", ["Available/New", "Available/Used", "Issued", "Faulty"])
-                        if st.form_submit_button("UPDATE ASSET DATA"):
+                        if st.form_submit_button("UPDATE"):
                             ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
                             ws_inv.update_cell(ridx, 2, n_br); ws_inv.update_cell(ridx, 3, n_md)
                             ws_inv.update_cell(ridx, 5, n_mc); ws_inv.update_cell(ridx, 6, n_st); ws_inv.update_cell(ridx, 7, n_lo)
-                            st.success("Asset Data Updated Successfully"); time.sleep(1); st.rerun()
-                else: st.warning("Asset not found in database.")
+                            st.success("Updated!"); time.sleep(1); st.rerun()
 
         with t3:
-            st.markdown("### Decommission Asset")
-            d_sn = st.text_input("Enter Serial Number to REMOVE")
-            if d_sn:
-                match = df[df['SERIAL'].astype(str).str.upper() == d_sn.strip().upper()]
-                if not match.empty:
-                    st.error(f"WARNING: You are about to delete {match.iloc[0]['MODEL']} (SN: {d_sn})")
-                    if st.button("CONFIRM PERMANENT DELETE"):
-                        ws_inv.delete_rows(int(df.index[df['SERIAL'] == d_sn][0]) + 2)
-                        st.success("Asset Purged from System"); time.sleep(1); st.rerun()
-
+            st.markdown("### Decommission")
+            d_sn = st.text_input("SN to REMOVE")
+            if d_sn and st.button("CONFIRM DELETE"):
+                idx = df.index[df['SERIAL'] == d_sn]
+                if not idx.empty:
+                    ws_inv.delete_rows(int(idx[0]) + 2)
+                    st.success("Deleted!"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        q = st.text_input("🔍 Global Security Asset Search")
+        q = st.text_input("🔍 Filter Database")
         f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
         st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
