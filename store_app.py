@@ -96,6 +96,8 @@ def load_data():
     if len(vals) > 1:
         headers = vals[0]
         df = pd.DataFrame(vals[1:], columns=headers)
+        # Ensure SN is treated as a clean string immediately
+        df['Serial Number'] = df['Serial Number'].astype(str).str.strip()
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = ''
@@ -228,8 +230,7 @@ else:
             with tabs[1]:
                 sn_search = st.text_input("Enter Serial Number to Modify").strip()
                 if sn_search:
-                    # NORMALIZE SEARCH
-                    matching_rows = df[df['Serial Number'].astype(str).str.strip().str.upper() == sn_search.upper()]
+                    matching_rows = df[df['Serial Number'].str.upper() == sn_search.upper()]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         data = df.iloc[row_idx]
@@ -259,7 +260,7 @@ else:
                 sn_issue = st.text_input("Enter Serial Number to Issue", key="admin_sn_issue").strip()
                 issued_to = st.text_input("Issued To", key="admin_issued_to")
                 if st.button("ISSUE ASSET", key="admin_issue_btn"):
-                    matching_rows = df[(df['Serial Number'].astype(str).str.strip().str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+                    matching_rows = df[(df['Serial Number'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
@@ -271,7 +272,7 @@ else:
                 sn_return = st.text_input("Enter Serial Number to Return").strip()
                 return_status = st.selectbox("Return Condition", ["Available/Used", "Faulty"])
                 if st.button("RETURN ASSET"):
-                    matching_rows = df[(df['Serial Number'].astype(str).str.strip().str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
+                    matching_rows = df[(df['Serial Number'].str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
@@ -280,23 +281,27 @@ else:
                     else: st.error("Asset not found or not issued.")
 
             with tabs[4]:
-                sn_del = st.text_input("Enter Serial Number to Delete", help="Enter the exact Serial Number you see in the database.").strip()
+                sn_del = st.text_input("Enter Serial Number to Delete").strip()
                 if st.button("DELETE ASSET"):
                     if sn_del:
-                        # NORMALIZE SEARCH: Strip spaces, convert to string, ignore case
-                        match_logic = df['Serial Number'].astype(str).str.strip().str.upper() == sn_del.upper()
+                        # SEARCH LOGIC: Check exact, then partial
+                        match_logic = df['Serial Number'].str.upper() == sn_del.upper()
                         matching_rows = df[match_logic]
                         
+                        if matching_rows.empty:
+                            # Try partial match if exact fails
+                            match_logic = df['Serial Number'].str.contains(sn_del, case=False, na=False)
+                            matching_rows = df[match_logic]
+
                         if not matching_rows.empty:
                             row_idx = matching_rows.index[0]
-                            # row_idx is 0-based index of the dataframe (excluding header)
-                            # Sheet row = row_idx + 2 (1 for header, 1 for 1-based index)
+                            found_sn = matching_rows.iloc[0]['Serial Number']
                             ws_inv.delete_rows(int(row_idx + 2))
-                            st.success(f"Asset '{sn_del}' has been successfully deleted.")
+                            st.success(f"Asset with SN: {found_sn} successfully deleted.")
                             time.sleep(1)
                             st.rerun()
                         else:
-                            st.error(f"Serial Number '{sn_del}' not found. Please check the Database tab for the exact SN.")
+                            st.error(f"Serial Number '{sn_del}' not found. Verify it matches the Database exactly.")
                     else:
                         st.warning("Please enter a Serial Number.")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -306,7 +311,7 @@ else:
         sn_issue = st.text_input("Enter Serial Number to Issue").strip()
         issued_to = st.text_input("Issued To")
         if st.button("ISSUE ASSET"):
-            matching_rows = df[(df['Serial Number'].astype(str).str.strip().str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+            matching_rows = df[(df['Serial Number'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
             if not matching_rows.empty:
                 row_idx = matching_rows.index[0]
                 row_num = row_idx + 2
