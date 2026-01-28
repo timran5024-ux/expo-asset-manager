@@ -26,7 +26,7 @@ st.markdown("""
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
-SESSION_SECRET = "expo_secure_salt_2026" # Secret key for session tokens
+SESSION_SECRET = "expo_secure_salt_2026" 
 
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -39,30 +39,24 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 2. SESSION SECURITY FUNCTIONS
+# 2. SESSION SECURITY
 # ==========================================
 def make_token(username):
-    """Creates a secure hash token for the session."""
     raw = f"{username}{SESSION_SECRET}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 def check_token(username, token):
-    """Verifies if the session token is valid."""
     return token == make_token(username)
 
 def set_login_session(username, role, can_import=False):
-    """Sets session state AND URL parameters for persistence."""
     st.session_state['logged_in'] = True
     st.session_state['role'] = role
     st.session_state['user'] = username
     st.session_state['can_import'] = can_import
-    
-    # Update URL to persist login across refreshes
     st.query_params["user"] = username
     st.query_params["token"] = make_token(username)
 
 def clear_login_session():
-    """Clears session and URL parameters."""
     st.session_state['logged_in'] = False
     st.session_state.clear()
     st.query_params.clear()
@@ -95,7 +89,6 @@ def get_worksheet(name):
     except: return None
 
 def safe_add_rows(ws, rows_list):
-    """Adds rows one by one. 100% compatible."""
     for row in rows_list:
         ws.append_row(row)
 
@@ -132,20 +125,17 @@ def to_excel(df):
     return output.getvalue()
 
 # ==========================================
-# 4. AUTO-LOGIN CHECK
+# 4. AUTO-LOGIN
 # ==========================================
 if 'logged_in' not in st.session_state:
-    # CHECK URL FOR SESSION
     params = st.query_params
     url_user = params.get("user")
     url_token = params.get("token")
     
     if url_user and url_token and check_token(url_user, url_token):
-        # Valid Session Found! Restore State.
         if url_user == "Administrator":
              set_login_session("Administrator", "Admin", True)
         else:
-             # Verify permissions for tech
              ws_u = get_worksheet("Users")
              can_bulk = False
              if ws_u:
@@ -201,7 +191,6 @@ def login_screen():
 if not st.session_state['logged_in']:
     login_screen()
 else:
-    # Load data if needed
     sync_local_state()
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
@@ -238,7 +227,8 @@ else:
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
-                    idx = match.index[0] 
+                    # FIX: Force int
+                    idx = int(match.index[0])
                     st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
                     
                     if "Available" in str(item['CONDITION']):
@@ -271,7 +261,8 @@ else:
                     loc = c2.selectbox("Location", stores)
                     
                     if st.form_submit_button("Return"):
-                        idx = df[df['SERIAL']==sel].index[0]
+                        # FIX: Force int
+                        idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         ws_inv.update_cell(sheet_row, 6, stat)
                         ws_inv.update_cell(sheet_row, 7, loc)
@@ -400,19 +391,24 @@ else:
                     match = df[df['SERIAL'].astype(str).str.contains(q, case=False)]
                     if not match.empty:
                         sel = st.selectbox("Select", match['SERIAL'].tolist())
-                        idx = df[df['SERIAL']==sel].index[0]+2
+                        # FIX: Cast to INT to prevent JSON error
+                        idx = int(df[df['SERIAL']==sel].index[0])
+                        sheet_row = idx + 2
+                        
                         c1, c2 = st.columns(2)
                         with c1:
                             with st.form("upd"):
                                 n_stat = st.selectbox("Status", ["Available/New", "Issued", "Faulty"])
                                 n_loc = st.text_input("Location", df[df['SERIAL']==sel].iloc[0]['LOCATION'])
                                 if st.form_submit_button("Update"):
-                                    ws_inv.update_cell(idx, 6, n_stat)
-                                    ws_inv.update_cell(idx, 7, n_loc)
+                                    ws_inv.update_cell(sheet_row, 6, n_stat)
+                                    ws_inv.update_cell(sheet_row, 7, n_loc)
                                     force_reload(); st.success("Updated"); st.rerun()
                         with c2:
                             if st.button("DELETE PERMANENTLY"):
-                                ws_inv.delete_rows(idx); force_reload(); st.success("Deleted"); st.rerun()
+                                # FIX: Cast to INT here too
+                                ws_inv.delete_rows(sheet_row)
+                                force_reload(); st.success("Deleted"); st.rerun()
 
         elif nav == "Database":
             c1, c2 = st.columns([6, 1])
