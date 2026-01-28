@@ -18,43 +18,43 @@ st.markdown("""
 <style>
     /* --- 1. REMOVE TOP GAP --- */
     .block-container {
-        padding-top: 1rem !important; /* Reduce top padding */
+        padding-top: 1rem !important;
         margin-top: 0rem !important;
     }
     
     /* --- 2. HIDE JUNK ELEMENTS --- */
-    /* Hide the top colored line */
     [data-testid="stDecoration"] {display: none !important;}
-    
-    /* Hide the "Deploy" and "Manage App" buttons */
     .stAppDeployButton {display: none !important;}
-    
-    /* Hide the Footer "Made with Streamlit" */
     footer {display: none !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
     
-    /* --- 3. THE SIDEBAR FIX --- */
-    /* We DO NOT hide the header, because it holds the sidebar button. */
+    /* --- 3. THE SIDEBAR TOGGLE FIX --- */
+    /* Hide the container, but keep it in layout */
     header {
-        background: transparent !important;
+        visibility: hidden !important;
     }
     
-    /* Instead, we hide the TOOLBAR inside the header (GitHub, Settings) */
+    /* Aggressively hide the toolbar (GitHub, Settings) */
     [data-testid="stToolbar"] {
         visibility: hidden !important; 
         display: none !important;
     }
     
-    /* Force the Sidebar Toggle Button to be visible */
+    /* MAKE THE SIDEBAR BUTTON VISIBLE AGAIN */
     [data-testid="collapsedControl"] {
         visibility: visible !important;
         display: block !important;
         color: #333333 !important;
+        z-index: 100000 !important; /* Force it to top */
+        position: relative !important;
+        top: 0px !important;
+        left: 0px !important;
     }
 
     /* --- 4. PROFESSIONAL STYLING --- */
     .stApp {background-color: #f4f7f6;}
     
-    /* Cards */
+    /* Metric Cards */
     div[data-testid="metric-container"] {
         background: white;
         border: 1px solid #e0e0e0;
@@ -64,7 +64,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
-    /* Chart Containers */
+    /* Chart Cards */
     div[data-testid="column"] {
         background: white;
         border-radius: 12px;
@@ -273,6 +273,7 @@ else:
 
     # --- GLOBAL SIDEBAR ---
     st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
+    st.sidebar.markdown("---")
     
     if st.session_state['role'] == "Technician":
         nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
