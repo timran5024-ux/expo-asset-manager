@@ -75,6 +75,8 @@ def load_data_initial():
         
         # Self-Repair Headers if missing
         if raw[0] != HEADERS:
+            # We assume the first row is corrupted or mismatched, so we ignore it
+            # and map columns strictly by index order
             pass 
 
         rows = raw[1:]
@@ -264,7 +266,7 @@ else:
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: 
-                        # UNIVERSAL COMPATIBILITY FIX: Loop instead of append_rows
+                        # SAFE LOOP
                         for r in rows:
                             ws_inv.append_row(r)
                         force_reload()
@@ -335,10 +337,10 @@ else:
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             
-                            # UNIVERSAL COMPATIBILITY FIX: Loop instead of append_rows
+                            # SAFE LOOP
                             for r in rows:
                                 ws_inv.append_row(r)
-                                
+                            
                             force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
 
