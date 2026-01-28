@@ -10,39 +10,62 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & HOVER ANIMATION CSS
+# 1. CONFIGURATION & SMART THEME CSS
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* 1. HIDE DEFAULT UI */
+    /* 1. HIDE DEFAULT UI ELEMENTS */
     header, footer, #MainMenu, .stAppDeployButton {visibility: hidden !important; display: none !important;}
     [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* 2. MAIN BACKGROUND */
-    .stApp {background-color: #f0f2f6;}
-    
-    /* 3. CARD STYLING & HOVER ZOOM EFFECT */
-    div[data-testid="column"] {
-        background: white;
-        border-radius: 10px;
-        padding: 10px;
-        border: 1px solid #e0e0e0;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0.2s;
-        height: 100%; /* Uniform height */
+    /* 2. SMART FORM STYLING (Dark/Light Mode Compatible) */
+    div[data-testid="stForm"] {
+        background-color: var(--secondary-background-color);
+        padding: 25px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        border-top: 3px solid #cfaa5e;
     }
     
-    /* THE MAGIC: Zoom on Hover */
+    /* 3. DASHBOARD CARD STYLING */
+    div[data-testid="column"] {
+        background-color: var(--secondary-background-color);
+        border-radius: 10px;
+        padding: 15px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0.2s;
+    }
+    
+    /* ZOOM EFFECT ON HOVER */
     div[data-testid="column"]:hover {
-        transform: scale(1.15); /* Make it 15% bigger */
-        z-index: 100; /* Bring to front */
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2); /* Add shadow */
+        transform: scale(1.05);
+        z-index: 10;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         border-color: #cfaa5e;
     }
 
-    /* 4. BUTTONS */
-    .stButton>button {width: 100%; border-radius: 6px; font-weight: 600;}
+    /* 4. SIDEBAR STYLING */
+    section[data-testid="stSidebar"] {
+        border-right: 1px solid rgba(128, 128, 128, 0.2);
+    }
+
+    /* 5. METRIC CARD STYLE */
+    div[data-testid="metric-container"] {
+        background-color: var(--secondary-background-color);
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+    }
+    
+    /* 6. BUTTONS */
+    .stButton>button {
+        width: 100%; 
+        border-radius: 6px; 
+        font-weight: 600;
+        border: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -129,7 +152,7 @@ def load_data_initial():
 
 def sync_local_state():
     if 'inventory_df' not in st.session_state or st.session_state['inventory_df'] is None:
-        with st.spinner("Downloading Database..."):
+        with st.spinner("Syncing Database..."):
             st.session_state['inventory_df'] = load_data_initial()
 
 def force_reload():
@@ -215,22 +238,32 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
+    # --- GLOBAL SIDEBAR ---
     st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
+    st.sidebar.markdown("---")
     
+    # NAVIGATION LOGIC
+    if st.session_state['role'] == "Technician":
+        nav = st.sidebar.radio("Menu", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
+    else:
+        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+    
+    st.sidebar.markdown("---")
     if st.sidebar.button("🔄 Refresh Data"): 
         force_reload()
-        st.success("Refreshed!")
+        st.success("Synced!")
         time.sleep(0.5)
         st.rerun()
+        
     if st.sidebar.button("🚪 Logout"): 
         clear_login_session()
         st.rerun()
 
-    # --- TECHNICIAN ---
+    # ==========================================
+    # TECHNICIAN DASHBOARD
+    # ==========================================
     if st.session_state['role'] == "Technician":
-        st.title("🛠️ Technician Dashboard")
-        nav = st.selectbox("Menu", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
-        st.divider()
+        st.title(f"{nav}")
 
         if nav == "🚀 Issue Asset":
             c1, c2 = st.columns([2, 1])
@@ -325,45 +358,54 @@ else:
         elif nav == "🎒 My Inventory":
             st.dataframe(df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')])
 
-    # --- ADMIN ---
+    # ==========================================
+    # ADMIN DASHBOARD
+    # ==========================================
     elif st.session_state['role'] == "Admin":
-        st.title("📊 Admin Panel")
-        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+        st.title(f"{nav}")
         
         if nav == "Dashboard":
-            st.markdown("### 📈 Asset Analytics")
             if not df.empty:
                 color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
                 
-                # --- CHANGE 111: GROUP BY MODEL ---
-                # Clean up empty models
-                valid_models = [m for m in df['MODEL'].unique() if str(m).strip() != ""]
-                models = sorted(valid_models)
+                # --- LAYOUT: 2 Columns (Left: Stats List, Right: Charts Grid) ---
+                col_left, col_right = st.columns([1, 4])
                 
-                # --- MATRIX GRID LAYOUT (4 COLS) ---
-                cols_per_row = 4
-                rows_needed = (len(models) + cols_per_row - 1) // cols_per_row
+                valid_models = sorted([m for m in df['MODEL'].unique() if str(m).strip() != ""])
                 
-                for row_idx in range(rows_needed):
-                    cols = st.columns(cols_per_row)
-                    for col_idx in range(cols_per_row):
-                        idx = row_idx * cols_per_row + col_idx
-                        if idx < len(models):
-                            model_name = models[idx]
-                            sub = df[df['MODEL'] == model_name]
-                            
-                            # Get Asset Type for context (use first found)
-                            atype_context = sub['ASSET TYPE'].iloc[0] if not sub.empty else "Unknown"
-                            
-                            with cols[col_idx]:
-                                # Clean Pie Chart
-                                title_html = f"<b>{model_name}</b><br><span style='font-size:11px; color:gray'>{atype_context} (Total: {len(sub)})</span>"
+                with col_left:
+                    st.markdown("### 📋 Asset List")
+                    for m in valid_models:
+                        sub = df[df['MODEL'] == m]
+                        total = len(sub)
+                        faulty = len(sub[sub['CONDITION'] == 'Faulty'])
+                        # Color code stats
+                        stat_color = "red" if faulty > 0 else "green"
+                        st.markdown(f"**{m}**")
+                        st.markdown(f"Total: {total} | <span style='color:{stat_color}'>Faulty: {faulty}</span>", unsafe_allow_html=True)
+                        st.divider()
+
+                with col_right:
+                    st.markdown("### 📈 Visual Overview")
+                    cols_per_row = 3
+                    rows_needed = (len(valid_models) + cols_per_row - 1) // cols_per_row
+                    
+                    for row_idx in range(rows_needed):
+                        cols = st.columns(cols_per_row)
+                        for col_idx in range(cols_per_row):
+                            idx = row_idx * cols_per_row + col_idx
+                            if idx < len(valid_models):
+                                m_name = valid_models[idx]
+                                sub = df[df['MODEL'] == m_name]
+                                atype = sub['ASSET TYPE'].iloc[0] if not sub.empty else ""
                                 
-                                fig = px.pie(sub, names='CONDITION', 
-                                             title=title_html,
-                                             color='CONDITION', color_discrete_map=color_map, hole=0.5)
-                                fig.update_layout(showlegend=False, margin=dict(t=40, b=0, l=0, r=0), height=200)
-                                st.plotly_chart(fig, use_container_width=True)
+                                with cols[col_idx]:
+                                    # CARD CHART
+                                    title_html = f"<b>{m_name}</b><br><span style='font-size:11px; opacity:0.7'>{atype}</span>"
+                                    fig = px.pie(sub, names='CONDITION', title=title_html,
+                                                 color='CONDITION', color_discrete_map=color_map, hole=0.6)
+                                    fig.update_layout(showlegend=False, margin=dict(t=40, b=10, l=10, r=10), height=180)
+                                    st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No assets found.")
 
