@@ -11,12 +11,12 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. PERMANENT SIDEBAR & EXECUTIVE UI (V176)
+# 1. GUARANTEED SIDEBAR ENGINE (V177)
 # ==========================================
 st.set_page_config(
     page_title="Asset Management Pro", 
     layout="wide", 
-    initial_sidebar_state="expanded" # Force it open
+    initial_sidebar_state="expanded" # Force open
 )
 
 def get_base64_bin(file_path):
@@ -43,18 +43,14 @@ if os.path.exists("logo.png"):
 st.markdown(f"""
 <style>
     {bg_css}
-    /* LOCK SIDEBAR OPEN AND REMOVE HIDE BUTTON */
-    [data-testid="collapsedControl"] {{
-        display: none !important;
-    }}
-    
+    /* CLEAN OVERRIDES WITHOUT BREAKING SIDEBAR */
     header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
 
     section[data-testid="stSidebar"] {{
-        background-color: rgba(255, 255, 255, 0.7) !important;
-        backdrop-filter: blur(25px);
+        background-color: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(20px);
         border-right: 1px solid rgba(197, 160, 89, 0.3);
-        width: 280px !important;
+        width: 300px !important;
     }}
 
     .exec-card {{
@@ -85,7 +81,7 @@ ADMIN_PASSWORD = "admin123"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # ==========================================
-# 2. DATA UTILITIES
+# 2. CORE LOGIC
 # ==========================================
 @st.cache_resource
 def get_client():
@@ -124,21 +120,21 @@ if not st.session_state['logged_in']:
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 else:
-    # --- LOAD FRESH DATA ---
+    # DATA PULL
     ws_inv = get_ws("Sheet1")
     df = pd.DataFrame(ws_inv.get_all_records())
 
-    # --- SIDEBAR (FIXED) ---
+    # --- THE SIDEBAR ---
     with st.sidebar:
         if os.path.exists("logo.png"): st.image("logo.png", width=140)
         st.markdown(f"### USER: **{st.session_state['user']}**")
         st.divider()
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ISSUE ASSET", "REGISTER ASSET"]
-        nav = st.radio("Navigation", menu, key="nav_radio")
-        st.markdown("<br>" * 5, unsafe_allow_html=True)
+        nav = st.radio("Menu Selection", menu)
+        st.markdown("<br>" * 10, unsafe_allow_html=True)
         if st.button("Logout System"): st.session_state.clear(); st.rerun()
 
-    # --- ROUTING ---
+    # --- MAIN PAGES ---
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
 
     if nav == "DASHBOARD":
@@ -153,14 +149,14 @@ else:
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Inventory</p>
+                <p class="metric-title">Security Summary</p>
                 <p class="hw-count">📹 Cameras: {c_cam}</p>
                 <p class="hw-count">💳 Readers: {c_rdr}</p>
                 <p class="hw-count">🖥️ Panels: {c_pnl}</p>
                 <p class="hw-count">🧲 Mag Locks: {c_lck}</p>
             </div>""", unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
@@ -173,11 +169,13 @@ else:
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         ws_u = get_ws("Users")
         udf = pd.DataFrame(ws_u.get_all_records())
+        
+        st.write("### Personnel Records")
         st.dataframe(udf, use_container_width=True)
         
         c1, c2 = st.columns(2)
         with c1:
-            with st.form("add_u"):
+            with st.form("add_user"):
                 st.write("**Register Technician**")
                 un, up = st.text_input("Name"), st.text_input("PIN")
                 if st.form_submit_button("CREATE"):
@@ -185,16 +183,16 @@ else:
                     st.success("User Added"); time.sleep(1); st.rerun()
         with c2:
             if not udf.empty:
-                st.write("**Manage Access**")
+                st.write("**Remove Access**")
                 target = st.selectbox("Select User", udf['Username'].tolist())
-                if st.button("DELETE USER"):
+                if st.button("REVOKE ACCESS"):
                     ws_u.delete_rows(ws_u.find(target).row)
                     st.success("Removed"); time.sleep(1); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        q = st.text_input("🔍 Global Search")
+        q = st.text_input("🔍 Filter Full Inventory")
         f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
         st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
