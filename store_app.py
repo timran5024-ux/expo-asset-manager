@@ -10,74 +10,98 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & UI REPAIR
+# 1. CONFIGURATION & PROFESSIONAL WHITE THEME
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-    /* --- 1. FULL SCREEN CLEANUP --- */
+    /* --- 1. CLEAN WHITE BACKGROUND --- */
+    .stApp {
+        background-color: #ffffff !important;
+    }
+    
+    /* Remove top whitespace */
     .block-container {
         padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
+        max-width: 95% !important;
     }
-    
-    /* Hide ALL Header/Footer/Sidebar Elements */
-    header {display: none !important;}
+
+    /* --- 2. HIDE STREAMLIT BRANDING (AGGRESSIVE) --- */
+    header {visibility: hidden !important;}
     footer {display: none !important;}
-    [data-testid="stSidebar"] {display: none !important;} /* Force Sidebar Hidden */
-    [data-testid="collapsedControl"] {display: none !important;} /* Hide Sidebar Button */
-    .stAppDeployButton {display: none !important;}
+    .stAppDeployButton {display: none !important; height: 0px !important;}
     [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* --- 2. TOP MENU STYLING --- */
-    /* Style the navigation dropdown to look like a header */
+    /* --- 3. UNIFORM INPUT BOX STYLING --- */
+    /* This targets Text Inputs, Select Boxes, and Number Inputs */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stNumberInput input {
+        background-color: #f8f9fa !important; /* Very light grey for contrast against white */
+        border: 1px solid #e0e0e0 !important;
+        border-radius: 8px !important;
+        color: #333333 !important;
+        height: 45px !important; /* Uniform height */
+    }
+    
+    /* Fix Selectbox internal text alignment */
+    .stSelectbox div[data-baseweb="select"] > div {
+        align-items: center !important;
+    }
+
+    /* --- 4. CARD & FORM STYLING --- */
+    /* The white containers for forms */
+    div[data-testid="stForm"] {
+        background-color: #ffffff !important;
+        border: 1px solid #e0e0e0 !important;
+        border-radius: 12px !important;
+        padding: 30px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03) !important; /* Soft shadow */
+    }
+    
+    /* Top Menu Styling */
     div[data-testid="stSelectbox"] {
-        background-color: white;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
-        border-top: 4px solid #cfaa5e;
+        margin-top: 0px !important;
     }
 
-    /* --- 3. PROFESSIONAL CARDS --- */
-    .stApp {background-color: #f4f7f6;}
-    
-    div[data-testid="metric-container"] {
-        background: white;
-        border: 1px solid #e0e0e0;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-
-    div[data-testid="column"] {
-        background: white;
-        border-radius: 12px;
-        padding: 15px;
-        border: 1px solid #f0f0f0;
-        transition: transform 0.2s ease;
-    }
-    div[data-testid="column"]:hover {
-        transform: scale(1.02);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        border-color: #cfaa5e;
-        z-index: 50;
-    }
-
-    /* --- 4. BUTTONS --- */
+    /* --- 5. BUTTON STYLING --- */
     .stButton>button {
         width: 100%;
-        border-radius: 8px;
         height: 45px;
+        border-radius: 8px;
         font-weight: 600;
-        background-color: #2c3e50;
-        color: white;
         border: none;
+        box-shadow: none;
+        transition: 0.2s;
+    }
+    
+    /* Primary Action Button (Blue/Black) */
+    button[kind="secondaryFormSubmit"] {
+        background-color: #2c3e50 !important;
+        color: white !important;
+    }
+    button[kind="secondaryFormSubmit"]:hover {
+        background-color: #34495e !important;
+    }
+
+    /* Standard Button */
+    .stButton>button {
+        background-color: #f1f3f5;
+        color: #333;
     }
     .stButton>button:hover {
-        background-color: #cfaa5e;
+        background-color: #e9ecef;
+        border: 1px solid #cfaa5e;
+    }
+
+    /* --- 6. METRIC CARDS --- */
+    div[data-testid="metric-container"] {
+        background-color: #ffffff;
+        border: 1px solid #eee;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #cfaa5e; /* Gold Accent */
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -148,7 +172,6 @@ def get_worksheet(name):
     except: return None
 
 def safe_add_rows(ws, rows_list):
-    """Adds rows one by one to avoid errors."""
     for row in rows_list:
         ws.append_row(row)
 
@@ -160,6 +183,7 @@ def load_data_initial():
         if not raw:
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
+        
         rows = raw[1:]
         clean_rows = []
         for r in rows:
@@ -186,7 +210,7 @@ def to_excel(df):
     return output.getvalue()
 
 # ==========================================
-# 4. AUTO-LOGIN
+# 4. AUTO-LOGIN CHECK
 # ==========================================
 if 'logged_in' not in st.session_state:
     params = st.query_params
@@ -213,17 +237,19 @@ if 'logged_in' not in st.session_state:
 # 5. LOGIN SCREEN
 # ==========================================
 def login_screen():
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown("<h1 style='text-align: center; color: #2c3e50;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
-        t1, t2 = st.tabs(["Technician", "Admin"])
+        st.markdown("<h1 style='text-align: center; color: #2c3e50; font-weight: 300;'>EXPO ASSET MANAGER</h1>", unsafe_allow_html=True)
+        st.markdown("<hr style='border:1px solid #cfaa5e'>", unsafe_allow_html=True)
+        
+        t1, t2 = st.tabs(["Technician", "Administrator"])
         
         with t1:
             with st.form("tech"):
                 u = st.text_input("Username")
                 p = st.text_input("PIN", type="password")
-                if st.form_submit_button("Access Dashboard"):
+                if st.form_submit_button("LOGIN"):
                     ws_u = get_worksheet("Users")
                     if ws_u:
                         users = ws_u.get_all_records()
@@ -240,7 +266,7 @@ def login_screen():
         with t2:
             with st.form("admin"):
                 p = st.text_input("Password", type="password")
-                if st.form_submit_button("Access Admin Panel"):
+                if st.form_submit_button("LOGIN"):
                     if p == ADMIN_PASSWORD:
                         set_login_session("Administrator", "Admin", True)
                         st.rerun()
@@ -256,39 +282,36 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- NEW TOP MENU (REPLACES SIDEBAR) ---
-    c_nav, c_user, c_act = st.columns([3, 1, 1])
+    # --- TOP NAVIGATION BAR ---
+    # Styled like a professional header
+    c_nav, c_user, c_act = st.columns([4, 2, 1])
     
     with c_nav:
-        # DETERMINE MENU OPTIONS BASED ON ROLE
+        # Determine Menu Options
         if st.session_state['role'] == "Technician":
             options = ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"]
         else:
             options = ["📊 Dashboard", "👥 User Manager", "🛠️ Asset Control", "📦 Database View"]
             
-        nav = st.selectbox("📍 Navigate:", options, label_visibility="collapsed")
+        nav = st.selectbox("Menu Navigation", options, label_visibility="collapsed")
 
     with c_user:
-        st.markdown(f"<div style='padding-top: 10px; text-align:right;'><b>👤 {st.session_state['user']}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:right; padding-top:10px; color:#555;'>User: <b>{st.session_state['user']}</b></div>", unsafe_allow_html=True)
 
     with c_act:
-        c_refresh, c_logout = st.columns(2)
-        if c_refresh.button("🔄"): 
-            force_reload()
-            st.rerun()
-        if c_logout.button("🚪"): 
-            clear_login_session()
-            st.rerun()
+        c_r, c_l = st.columns(2)
+        if c_r.button("🔄"): force_reload(); st.rerun()
+        if c_l.button("🚪"): clear_login_session(); st.rerun()
 
-    st.markdown("---")
+    st.divider()
 
     # --- TECHNICIAN LOGIC ---
     if st.session_state['role'] == "Technician":
         
         if nav == "🚀 Issue Asset":
-            st.subheader("🚀 Issue Asset")
-            c1, c2 = st.columns([2, 1])
-            with c1: search = st.text_input("Enter Serial Number")
+            st.markdown("#### 🚀 Issue Asset")
+            c1, c2 = st.columns([3, 1])
+            with c1: search = st.text_input("Enter Asset Serial Number", placeholder="Scan or Type...")
             with c2:
                 if CAMERA_AVAILABLE:
                     cam = st.camera_input("Scan QR")
@@ -301,61 +324,64 @@ else:
                 if not match.empty:
                     item = match.iloc[0]
                     idx = int(match.index[0])
-                    st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
+                    st.success(f"Verified: {item['MODEL']} ({item['ASSET TYPE']})")
+                    
                     if "Available" in str(item['CONDITION']):
                         with st.form("issue"):
-                            tkt = st.text_input("Ticket #")
-                            if st.form_submit_button("Confirm Issue"):
+                            tkt = st.text_input("Helpdesk Ticket Number")
+                            if st.form_submit_button("CONFIRM ISSUANCE"):
                                 sheet_row = idx + 2
                                 ws_inv.update_cell(sheet_row, 6, "Issued")
                                 ws_inv.update_cell(sheet_row, 8, st.session_state['user'])
                                 ws_inv.update_cell(sheet_row, 9, tkt)
-                                force_reload(); st.success("Issued!"); st.rerun()
-                    else: st.warning(f"Item is {item['CONDITION']}")
-                else: st.error("Not Found")
+                                force_reload(); st.success("Asset Issued Successfully"); st.rerun()
+                    else: st.warning(f"Status: {item['CONDITION']} - Cannot Issue")
+                else: st.error("Serial Number Not Found")
 
         elif nav == "📥 Return Asset":
-            st.subheader("📥 Return Asset")
+            st.markdown("#### 📥 Return Asset")
             my = df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')]
-            if my.empty: st.info("No returns pending.")
+            if my.empty: st.info("No assets currently issued to you.")
             else:
-                sel = st.selectbox("Select Item", my['SERIAL'].tolist())
+                sel = st.selectbox("Select Asset to Return", my['SERIAL'].tolist())
                 with st.form("ret"):
                     c1,c2 = st.columns(2)
-                    stat = c1.selectbox("New Condition", ["Available/New", "Available/Used", "Faulty"])
+                    stat = c1.selectbox("Condition Upon Return", ["Available/New", "Available/Used", "Faulty"])
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
-                    loc = c2.selectbox("Location", stores)
-                    if st.form_submit_button("Return"):
+                    loc = c2.selectbox("Return Location", stores)
+                    if st.form_submit_button("CONFIRM RETURN"):
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         ws_inv.update_cell(sheet_row, 6, stat)
                         ws_inv.update_cell(sheet_row, 7, loc)
                         ws_inv.update_cell(sheet_row, 8, "")
-                        force_reload(); st.success("Returned!"); st.rerun()
+                        force_reload(); st.success("Asset Returned Successfully"); st.rerun()
 
         elif nav == "➕ Add Asset":
-            st.subheader("➕ Add New Asset")
+            st.markdown("#### ➕ Register New Asset")
             with st.form("add"):
                 c1,c2 = st.columns(2)
-                typ = c1.selectbox("Type", ["Camera", "Reader", "Controller", "Lock"])
-                man = c1.text_input("Brand"); mod = c2.text_input("Model")
-                sn = c2.text_input("Serial"); mac = c1.text_input("MAC")
+                typ = c1.selectbox("Asset Category", ["Camera", "Reader", "Controller", "Lock", "Laptop", "Switch", "Server"])
+                man = c1.text_input("Brand / Manufacturer")
+                mod = c2.text_input("Model Number")
+                sn = c2.text_input("Serial Number")
+                mac = c1.text_input("MAC Address (Optional)")
                 stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
-                loc = c2.selectbox("Location", stores)
-                stat = st.selectbox("Condition", ["Available/New", "Available/Used"])
-                if st.form_submit_button("Save"):
+                loc = c2.selectbox("Storage Location", stores)
+                stat = st.selectbox("Initial Condition", ["Available/New", "Available/Used"])
+                if st.form_submit_button("SAVE TO DATABASE"):
                     if sn not in df['SERIAL'].astype(str).tolist():
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
                         safe_add_rows(ws_inv, [row])
-                        force_reload(); st.success("Saved!"); st.rerun()
-                    else: st.error("Duplicate Serial")
+                        force_reload(); st.success("Asset Registered"); st.rerun()
+                    else: st.error("Error: Duplicate Serial Number")
 
         elif nav == "⚡ Bulk Import":
-            st.subheader("⚡ Bulk Import")
+            st.markdown("#### ⚡ Bulk Data Import")
             if st.session_state.get('can_import'):
-                st.download_button("Template", to_excel(pd.DataFrame(columns=HEADERS)), "template.xlsx")
-                up = st.file_uploader("Upload Excel", type=['xlsx'])
-                if up and st.button("Import"):
+                st.download_button("Download Excel Template", to_excel(pd.DataFrame(columns=HEADERS)), "template.xlsx")
+                up = st.file_uploader("Upload Completed Excel", type=['xlsx'])
+                if up and st.button("PROCESS IMPORT"):
                     d = pd.read_excel(up).fillna("")
                     d.columns = [str(c).strip().upper() for c in d.columns]
                     rows = []
@@ -365,26 +391,29 @@ else:
                             rows.append([r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), s, r.get('MAC ADDRESS', ''), "Available/New", r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"])
                     if rows: 
                         safe_add_rows(ws_inv, rows)
-                        force_reload(); st.success(f"Imported {len(rows)}"); st.rerun()
-            else: st.error("Permission Denied")
+                        force_reload(); st.success(f"Successfully Imported {len(rows)} Assets"); st.rerun()
+            else: st.error("Access Denied: You do not have bulk import permissions.")
 
         elif nav == "🎒 My Inventory":
-            st.subheader("🎒 My Inventory")
-            st.dataframe(df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')])
+            st.markdown("#### 🎒 Currently Held Assets")
+            st.dataframe(df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')], use_container_width=True)
 
     # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
         
         if nav == "📊 Dashboard":
-            st.markdown("### 📈 System Overview")
+            st.markdown("#### 📊 System Overview")
             if not df.empty:
+                # METRICS
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total", len(df))
+                c1.metric("Total Assets", len(df))
                 c2.metric("Available", len(df[df['CONDITION'].str.contains('Available', na=False)]))
                 c3.metric("Issued", len(df[df['CONDITION']=='Issued']))
                 c4.metric("Faulty", len(df[df['CONDITION']=='Faulty']))
+                
                 st.markdown("<br>", unsafe_allow_html=True)
 
+                # PIE CHARTS GRID
                 color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
                 valid_models = sorted([m for m in df['MODEL'].unique() if str(m).strip() != ""])
                 
@@ -400,54 +429,65 @@ else:
                             sub = df[df['MODEL'] == m_name]
                             atype = sub['ASSET TYPE'].iloc[0] if not sub.empty else ""
                             with cols[col_idx]:
-                                title_html = f"<b>{m_name}</b><br><span style='font-size:11px; opacity:0.6'>{atype} (Total: {len(sub)})</span>"
-                                fig = px.pie(sub, names='CONDITION', title=title_html, color='CONDITION', color_discrete_map=color_map, hole=0.5)
-                                fig.update_layout(showlegend=False, margin=dict(t=40, b=10, l=10, r=10), height=200)
-                                st.plotly_chart(fig, use_container_width=True)
+                                # Clean Card for Chart
+                                with st.container():
+                                    st.caption(f"{atype}")
+                                    st.markdown(f"**{m_name}**")
+                                    fig = px.pie(sub, names='CONDITION', color='CONDITION', color_discrete_map=color_map, hole=0.6)
+                                    fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=150)
+                                    st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No assets found.")
+                st.info("Database is empty.")
 
         elif nav == "👥 User Manager":
-            st.subheader("👥 User Management")
+            st.markdown("#### 👥 User Management")
             ws_u = get_worksheet("Users")
             if ws_u:
                 udf = pd.DataFrame(ws_u.get_all_records())
                 st.dataframe(udf, use_container_width=True)
-                with st.expander("➕ Add / ❌ Delete Users"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        with st.form("add_u"):
-                            u = st.text_input("User"); p = st.text_input("PIN"); perm = st.selectbox("Perm", ["Standard", "Bulk_Allowed"])
-                            if st.form_submit_button("Add"): ws_u.append_row([u, p, perm]); st.success("Added"); st.rerun()
-                    with c2:
-                        target = st.selectbox("Select User", udf['Username'].tolist() if not udf.empty else [])
-                        if st.button("Delete User"):
-                            cell = ws_u.find(target)
-                            ws_u.delete_rows(cell.row)
-                            st.success("Deleted"); st.rerun()
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    with st.form("add_u"):
+                        st.markdown("**Add New User**")
+                        u = st.text_input("Username")
+                        p = st.text_input("PIN Code")
+                        perm = st.selectbox("Permission Level", ["Standard", "Bulk_Allowed"])
+                        if st.form_submit_button("Create User"): 
+                            ws_u.append_row([u, p, perm])
+                            st.success("User Added")
+                            time.sleep(1); st.rerun()
+                with c2:
+                    st.markdown("**Delete User**")
+                    target = st.selectbox("Select User to Delete", udf['Username'].tolist() if not udf.empty else [])
+                    if st.button("DELETE USER PERMANENTLY"):
+                        cell = ws_u.find(target)
+                        ws_u.delete_rows(cell.row)
+                        st.success("User Deleted")
+                        time.sleep(1); st.rerun()
 
         elif nav == "🛠️ Asset Control":
-            st.subheader("🛠️ Master Asset Control")
-            tab1, tab2 = st.tabs(["Add Asset", "Edit/Delete"])
+            st.markdown("#### 🛠️ Master Asset Control")
+            tab1, tab2 = st.tabs(["Add Assets", "Edit/Delete Assets"])
             
             with tab1:
                 with st.form("adm_add"):
                     c1, c2, c3 = st.columns(3)
-                    atype = c1.text_input("Asset Type", placeholder="e.g. Laptop")
+                    atype = c1.text_input("Asset Type (e.g. Laptop)")
                     brand = c2.text_input("Brand")
                     model = c3.text_input("Model")
                     c4, c5, c6 = st.columns(3)
-                    serial = c4.text_input("Serial")
-                    mac = c5.text_input("MAC")
+                    serial = c4.text_input("Serial Number (Start)")
+                    mac = c5.text_input("MAC Address")
                     cond = c6.selectbox("Condition", ["Available/New", "Available/Used", "Faulty"])
                     c7, c8 = st.columns(2)
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                     loc = c7.selectbox("Location", stores)
                     qty = c8.number_input("Quantity", 1, 100, 1)
-                    if st.form_submit_button("Add Asset"):
-                        if not atype: st.error("Type Required")
+                    if st.form_submit_button("ADD ASSETS"):
+                        if not atype: st.error("Asset Type Required")
                         elif not serial and qty == 1: st.error("Serial Required")
-                        elif serial in df['SERIAL'].astype(str).tolist(): st.error("Duplicate")
+                        elif serial in df['SERIAL'].astype(str).tolist(): st.error("Duplicate Serial")
                         else:
                             rows = []
                             for i in range(qty):
@@ -457,30 +497,32 @@ else:
                             force_reload(); st.success(f"Added {qty} items"); st.rerun()
 
             with tab2:
-                q = st.text_input("Search Serial")
+                q = st.text_input("Search Asset by Serial Number")
                 if q:
                     match = df[df['SERIAL'].astype(str).str.contains(q, case=False)]
                     if not match.empty:
-                        sel = st.selectbox("Select", match['SERIAL'].tolist())
+                        sel = st.selectbox("Select Asset", match['SERIAL'].tolist())
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
+                        
                         c1, c2 = st.columns(2)
                         with c1:
                             with st.form("upd"):
-                                n_stat = st.selectbox("Status", ["Available/New", "Issued", "Faulty"])
-                                n_loc = st.text_input("Location", df[df['SERIAL']==sel].iloc[0]['LOCATION'])
-                                if st.form_submit_button("Update"):
+                                st.markdown("**Update Status**")
+                                n_stat = st.selectbox("New Status", ["Available/New", "Issued", "Faulty"])
+                                n_loc = st.text_input("New Location", df[df['SERIAL']==sel].iloc[0]['LOCATION'])
+                                if st.form_submit_button("UPDATE ASSET"):
                                     ws_inv.update_cell(sheet_row, 6, n_stat)
                                     ws_inv.update_cell(sheet_row, 7, n_loc)
                                     force_reload(); st.success("Updated"); st.rerun()
                         with c2:
-                            if st.button("DELETE PERMANENTLY"):
+                            st.markdown("**Danger Zone**")
+                            if st.button("DELETE ASSET PERMANENTLY"):
                                 ws_inv.delete_rows(sheet_row)
                                 force_reload(); st.success("Deleted"); st.rerun()
 
         elif nav == "📦 Database View":
-            st.subheader("📦 Database View")
+            st.markdown("#### 📦 Full Database")
             c1, c2 = st.columns([6, 1])
-            c1.write("")
-            c2.download_button("📥 Export", to_excel(df), "data.xlsx")
+            c2.download_button("📥 Export to Excel", to_excel(df), "inventory_data.xlsx")
             st.dataframe(df, use_container_width=True)
