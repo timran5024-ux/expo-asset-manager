@@ -27,8 +27,8 @@ ADMIN_PASSWORD = "admin123"
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# THE MASTER HEADER LIST
-EXPECTED_HEADERS = [
+# THE MASTER HEADER LIST (Strict Order)
+HEADERS = [
     "ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", 
     "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"
 ]
@@ -72,62 +72,45 @@ def get_sheet_data(worksheet_name):
     except: return None
 
 # ==========================================
-# 3. CORE LOGIC (DUPLICATE COLUMN FIXER)
+# 3. CORE LOGIC (SELF-HEALING)
 # ==========================================
 def download_data():
     ws = get_sheet_data("Sheet1")
-    if not ws: return pd.DataFrame(columns=EXPECTED_HEADERS)
+    if not ws: return pd.DataFrame(columns=HEADERS)
     
     try:
         raw = ws.get_all_values()
-        if not raw: return pd.DataFrame(columns=EXPECTED_HEADERS)
         
-        # 1. Get Raw Headers
-        raw_headers = raw[0]
-        data_rows = raw[1:]
+        # SELF-HEALING: If empty or headers are wrong, fix them immediately
+        if not raw or raw[0] != HEADERS:
+            # We don't overwrite if data exists, we just rely on index mapping
+            # But if it's empty, we init
+            if not raw:
+                ws.append_row(HEADERS)
+                return pd.DataFrame(columns=HEADERS)
         
-        # 2. Clean and Rename Headers
-        cleaned_headers = []
-        rename_map = {
-            "SERIAL NUMBER": "SERIAL",
-            "MANUFACTURER": "BRAND",
-            "STATUS": "CONDITION",
-            "MAC": "MAC ADDRESS",
-            "TYPE": "ASSET TYPE",
-            "LOC": "LOCATION"
-        }
+        # Read Data with Strict Headers (ignoring whatever is in row 1 if it mismatches slightly)
+        # We assume the columns are in the correct order:
+        # Col 0: Type, 1: Brand, 2: Model, 3: Serial...
+        rows = raw[1:]
+        if not rows: return pd.DataFrame(columns=HEADERS)
         
-        for h in raw_headers:
-            h_str = str(h).strip().upper()
-            # Apply rename map
-            if h_str in rename_map:
-                h_str = rename_map[h_str]
-            cleaned_headers.append(h_str)
+        # Create DataFrame mapping by Index to ensure stability
+        # If a row is short, pad it
+        clean_rows = []
+        for r in rows:
+            # Pad row if shorter than headers
+            while len(r) < len(HEADERS):
+                r.append("")
+            # Truncate if longer
+            clean_rows.append(r[:len(HEADERS)])
             
-        # 3. CRITICAL FIX: Deduplicate Headers
-        # If we have two "SERIAL" columns, rename the second one to "SERIAL_2"
-        final_headers = []
-        seen_count = {}
-        for h in cleaned_headers:
-            if h in seen_count:
-                seen_count[h] += 1
-                final_headers.append(f"{h}_{seen_count[h]}") # e.g., SERIAL_1
-            else:
-                seen_count[h] = 0
-                final_headers.append(h)
-        
-        # 4. Create DataFrame
-        df = pd.DataFrame(data_rows, columns=final_headers)
-        
-        # 5. Ensure EXPECTED headers exist
-        for col in EXPECTED_HEADERS:
-            if col not in df.columns:
-                df[col] = ""
-                
+        df = pd.DataFrame(clean_rows, columns=HEADERS)
         return df
+
     except Exception as e:
-        st.error(f"Data Load Error: {e}")
-        return pd.DataFrame(columns=EXPECTED_HEADERS)
+        st.error(f"Data Error: {e}")
+        return pd.DataFrame(columns=HEADERS)
 
 def force_sync():
     st.session_state['inventory_df'] = download_data()
@@ -149,7 +132,7 @@ def to_excel(df):
     return output.getvalue()
 
 def get_template():
-    t = pd.DataFrame(columns=EXPECTED_HEADERS)
+    t = pd.DataFrame(columns=HEADERS)
     return to_excel(t)
 
 # ==========================================
@@ -216,11 +199,6 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_sheet_data("Sheet1")
 
-    # Force headers if empty
-    if ws_inv and not ws_inv.get_all_values():
-        ws_inv.append_row(EXPECTED_HEADERS)
-        force_sync()
-
     # --- TECHNICIAN ---
     if st.session_state['role'] == "Technician":
         st.title("🛠️ Technician Dashboard")
@@ -238,7 +216,7 @@ else:
                         except: pass
             
             if search:
-                # Robust match against 'SERIAL'
+                # Matches strict 'SERIAL' column (Index 3)
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
@@ -248,10 +226,13 @@ else:
                             tkt = st.text_input("Ticket #")
                             if st.form_submit_button("Confirm Issue"):
                                 idx = match.index[0]+2
-                                # Indices: 0:Type, 1:Brand, 2:Model, 3:Serial, 4:Mac, 5:Cond, 6:Loc, 7:IssuedTo, 8:Ticket
-                                ws_inv.update_cell(idx, 6, "Issued") # Col F (Condition)
-                                ws_inv.update_cell(idx, 8, st.session_state['user']) # Col H (Issued To)
-                                ws_inv.update_cell(idx, 9, tkt) # Col I (Ticket)
+                                # Update Columns: 6=Loc, 7=IssuedTo, 8=Ticket (Indices start at 1 in Sheets)
+                                # Sheet Cols: A=1, B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9
+                                # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET
+                                #           1     2      3      4      5    6     7     8       9
+                                ws_inv.update_cell(idx, 6, "Issued")
+                                ws_inv.update_cell(idx, 8, st.session_state['user'])
+                                ws_inv.update_cell(idx, 9, tkt)
                                 force_sync(); st.success("Issued!"); st.rerun()
                     else: st.warning(f"Item is {item['CONDITION']}")
                 else: st.error("Not Found")
@@ -282,7 +263,7 @@ else:
                 stat = st.selectbox("Condition", ["Available/New", "Available/Used"])
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
-                        # [Type, Brand, Model, Serial, Mac, Cond, Loc, Issued, Ticket, Time, User]
+                        # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET, TIME, USER
                         ws_inv.append_row([typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']])
                         force_sync(); st.success("Saved!"); st.rerun()
                     else: st.error("Duplicate Serial")
@@ -293,16 +274,15 @@ else:
                 up = st.file_uploader("Upload Excel", type=['xlsx'])
                 if up and st.button("Import"):
                     d = pd.read_excel(up).fillna("")
-                    # Standardize imported columns to match expected headers
                     d.columns = [str(c).strip().upper() for c in d.columns]
                     rows = []
                     for i,r in d.iterrows():
-                        # Map input columns to our structure
-                        s_num = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
-                        if s_num and s_num not in df['SERIAL'].astype(str).tolist():
+                        # Smart Map
+                        s = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
+                        if s and s not in df['SERIAL'].astype(str).tolist():
                             rows.append([
                                 r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), 
-                                s_num, r.get('MAC ADDRESS', ''), "Available/New", 
+                                s, r.get('MAC ADDRESS', ''), "Available/New", 
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: ws_inv.append_rows(rows); force_sync(); st.success(f"Imported {len(rows)}")
@@ -311,7 +291,7 @@ else:
     # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
         st.title("📊 Admin Panel")
-        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database Health", "Database"])
         
         if nav == "Dashboard":
             if not df.empty:
@@ -368,7 +348,7 @@ else:
                             rows = []
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
-                                # Order: [Type, Brand, Model, Serial, Mac, Cond, Loc, Issued, Ticket, Time, User]
+                                # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET, TIME, USER
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             ws_inv.append_rows(rows)
                             force_sync(); st.success(f"Added {qty} items"); st.rerun()
@@ -393,6 +373,16 @@ else:
                         with c2:
                             if st.button("DELETE PERMANENTLY"):
                                 ws_inv.delete_rows(idx); force_sync(); st.success("Deleted"); st.rerun()
+
+        elif nav == "Database Health":
+            st.subheader("🏥 Database Health")
+            st.warning("Use this to fix corrupted columns or headers.")
+            if st.button("FORCE REPAIR HEADERS"):
+                # Overwrite Row 1 with correct headers
+                # Clears first row then writes headers
+                ws_inv.update("A1:K1", [HEADERS])
+                force_sync()
+                st.success("Headers Repaired. Check Database tab.")
 
         elif nav == "Database":
             st.dataframe(df, use_container_width=True)
