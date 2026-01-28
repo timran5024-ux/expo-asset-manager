@@ -92,23 +92,26 @@ def get_ws(name):
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
-    # Your EXACT Sheet Headers
-    expected_columns = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET"]
+    # Explicit headers based on your sheet
+    expected = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET"]
     
     if len(vals) > 0:
-        # Normalize headers: Upper case and Strip whitespace
+        # Force column names to be clean uppercase strings
         headers = [str(h).strip().upper() for h in vals[0]]
         df = pd.DataFrame(vals[1:], columns=headers)
         
-        # Ensure the ASSET TYPE column is accessible even if empty
-        for col in expected_columns:
+        # Guard against missing columns from the expected list
+        for col in expected:
             if col not in df.columns:
                 df[col] = ''
         
-        # Strip all data values to prevent matching errors
-        return df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+        # Ensure 'ASSET TYPE' exists specifically for the dashboard logic
+        if 'ASSET TYPE' not in df.columns:
+            df['ASSET TYPE'] = ''
+            
+        return df
     else:
-        return pd.DataFrame(columns=expected_columns)
+        return pd.DataFrame(columns=expected)
 
 # ==========================================
 # 3. INTERFACE
@@ -157,11 +160,13 @@ else:
    
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
     if nav == "DASHBOARD":
-        if df.empty or 'ASSET TYPE' not in df.columns:
-            st.info("No assets registered or column 'ASSET TYPE' missing.")
+        if df.empty:
+            st.info("No assets registered yet.")
         else:
-            # FIX: Use exact column name from normalized load
-            types = df['ASSET TYPE'].fillna('').astype(str).str.upper()
+            # Safer access with standard uppercase header
+            asset_col = 'ASSET TYPE'
+            types = df[asset_col].fillna('').astype(str).str.upper()
+            
             c_cam = len(df[types.str.contains('CAMERA', na=False)])
             c_rdr = len(df[types.str.contains('READER', na=False)])
             c_pnl = len(df[types.str.contains('PANEL', na=False)])
@@ -232,18 +237,15 @@ else:
                         with st.form("modify_asset"):
                             c1, c2, c3 = st.columns(3)
                             at = c1.text_input("ASSET TYPE", value=data['ASSET TYPE'])
-                            br = c2.text_input("BRAND", value=data['BRAND'])
-                            md = c3.text_input("MODEL", value=data['MODEL'])
-                            sn = c1.text_input("SERIAL", value=data['SERIAL'])
-                            mc = c2.text_input("MAC ADDRESS", value=data['MAC ADDRESS'])
+                            br = c1.text_input("BRAND", value=data['BRAND'])
+                            md = c2.text_input("MODEL", value=data['MODEL'])
+                            sn = c2.text_input("SERIAL", value=data['SERIAL'])
+                            mc = c3.text_input("MAC ADDRESS", value=data['MAC ADDRESS'])
                             cond_list = ["Available/New", "Available/Used", "Faulty", "Issued"]
                             st_v = c3.selectbox("CONDITION", cond_list, index=cond_list.index(data['CONDITION']) if data['CONDITION'] in cond_list else 0)
-                            loc_list = ["MOBILITY STORE-10", "BASEMENT", "TERRA"]
-                            lo = c1.selectbox("LOCATION", loc_list, index=loc_list.index(data['LOCATION']) if data['LOCATION'] in loc_list else 0)
-                            issued_to = c2.text_input("ISSUED TO", value=data['ISSUED TO'])
                             if st.form_submit_button("UPDATE ASSET"):
                                 row_num = row_idx + 2
-                                update_vals = [[at, br, md, sn, mc, st_v, lo, issued_to, data['TICKET']]]
+                                update_vals = [[at, br, md, sn, mc, st_v, data['LOCATION'], data['ISSUED TO'], data['TICKET']]]
                                 ws_inv.update(values=update_vals, range_name=f'A{row_num}:I{row_num}')
                                 st.success("Asset Updated!"); time.sleep(1); st.rerun()
                     else: st.error("SERIAL not found.")
