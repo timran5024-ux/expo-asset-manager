@@ -27,7 +27,7 @@ ADMIN_PASSWORD = "admin123"
 FIXED_STORES = ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT STORE", "TERRA BASEMENT STORE"]
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# THE MASTER HEADER LIST (Matches your Yellow Picture + System fields)
+# THE MASTER HEADER LIST
 EXPECTED_HEADERS = [
     "ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", 
     "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"
@@ -72,28 +72,22 @@ def get_sheet_data(worksheet_name):
     except: return None
 
 # ==========================================
-# 3. CORE LOGIC (ROBUST DATA LOADER)
+# 3. CORE LOGIC (DUPLICATE COLUMN FIXER)
 # ==========================================
 def download_data():
     ws = get_sheet_data("Sheet1")
-    # Return empty strict frame if connection fails
     if not ws: return pd.DataFrame(columns=EXPECTED_HEADERS)
     
     try:
         raw = ws.get_all_values()
         if not raw: return pd.DataFrame(columns=EXPECTED_HEADERS)
         
-        # 1. Raw Headers
-        headers = raw[0]
-        rows = raw[1:]
+        # 1. Get Raw Headers
+        raw_headers = raw[0]
+        data_rows = raw[1:]
         
-        # 2. Create DataFrame
-        df = pd.DataFrame(rows, columns=headers)
-        
-        # 3. Normalize Headers (Upper case + Strip)
-        df.columns = [str(c).strip().upper() for c in df.columns]
-        
-        # 4. CRITICAL FIX: Map Old Names to New Names (Prevent KeyError)
+        # 2. Clean and Rename Headers
+        cleaned_headers = []
         rename_map = {
             "SERIAL NUMBER": "SERIAL",
             "MANUFACTURER": "BRAND",
@@ -102,9 +96,30 @@ def download_data():
             "TYPE": "ASSET TYPE",
             "LOC": "LOCATION"
         }
-        df.rename(columns=rename_map, inplace=True)
         
-        # 5. Ensure all EXPECTED headers exist
+        for h in raw_headers:
+            h_str = str(h).strip().upper()
+            # Apply rename map
+            if h_str in rename_map:
+                h_str = rename_map[h_str]
+            cleaned_headers.append(h_str)
+            
+        # 3. CRITICAL FIX: Deduplicate Headers
+        # If we have two "SERIAL" columns, rename the second one to "SERIAL_2"
+        final_headers = []
+        seen_count = {}
+        for h in cleaned_headers:
+            if h in seen_count:
+                seen_count[h] += 1
+                final_headers.append(f"{h}_{seen_count[h]}") # e.g., SERIAL_1
+            else:
+                seen_count[h] = 0
+                final_headers.append(h)
+        
+        # 4. Create DataFrame
+        df = pd.DataFrame(data_rows, columns=final_headers)
+        
+        # 5. Ensure EXPECTED headers exist
         for col in EXPECTED_HEADERS:
             if col not in df.columns:
                 df[col] = ""
@@ -233,8 +248,7 @@ else:
                             tkt = st.text_input("Ticket #")
                             if st.form_submit_button("Confirm Issue"):
                                 idx = match.index[0]+2
-                                # Mapped to EXPECTED_HEADERS indices:
-                                # 0:TYPE, 1:BRAND, 2:MODEL, 3:SERIAL, 4:MAC, 5:COND, 6:LOC, 7:ISSUED, 8:TICKET
+                                # Indices: 0:Type, 1:Brand, 2:Model, 3:Serial, 4:Mac, 5:Cond, 6:Loc, 7:IssuedTo, 8:Ticket
                                 ws_inv.update_cell(idx, 6, "Issued") # Col F (Condition)
                                 ws_inv.update_cell(idx, 8, st.session_state['user']) # Col H (Issued To)
                                 ws_inv.update_cell(idx, 9, tkt) # Col I (Ticket)
@@ -272,6 +286,27 @@ else:
                         ws_inv.append_row([typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']])
                         force_sync(); st.success("Saved!"); st.rerun()
                     else: st.error("Duplicate Serial")
+        
+        elif nav == "⚡ Bulk Import":
+            if st.session_state.get('can_import'):
+                st.download_button("Template", get_template(), "template.xlsx")
+                up = st.file_uploader("Upload Excel", type=['xlsx'])
+                if up and st.button("Import"):
+                    d = pd.read_excel(up).fillna("")
+                    # Standardize imported columns to match expected headers
+                    d.columns = [str(c).strip().upper() for c in d.columns]
+                    rows = []
+                    for i,r in d.iterrows():
+                        # Map input columns to our structure
+                        s_num = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
+                        if s_num and s_num not in df['SERIAL'].astype(str).tolist():
+                            rows.append([
+                                r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), 
+                                s_num, r.get('MAC ADDRESS', ''), "Available/New", 
+                                r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
+                            ])
+                    if rows: ws_inv.append_rows(rows); force_sync(); st.success(f"Imported {len(rows)}")
+            else: st.error("Permission Denied")
 
     # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
@@ -312,8 +347,7 @@ else:
             with tab1:
                 with st.form("adm_add"):
                     c1, c2, c3 = st.columns(3)
-                    # Text Input for flexible Asset Type
-                    atype = c1.text_input("Asset Type (e.g. Camera, Laptop)")
+                    atype = c1.text_input("Asset Type", placeholder="e.g. Laptop")
                     brand = c2.text_input("Brand")
                     model = c3.text_input("Model")
                     
