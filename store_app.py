@@ -30,6 +30,7 @@ st.markdown("""
         padding: 10px;
         border: 1px solid #e0e0e0;
         transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0.2s;
+        height: 100%; /* Uniform height */
     }
     
     /* THE MAGIC: Zoom on Hover */
@@ -215,6 +216,7 @@ else:
     ws_inv = get_worksheet("Sheet1")
 
     st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
+    
     if st.sidebar.button("🔄 Refresh Data"): 
         force_reload()
         st.success("Refreshed!")
@@ -329,27 +331,38 @@ else:
         nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
         
         if nav == "Dashboard":
-            st.markdown("### 📈 Asset Overview")
+            st.markdown("### 📈 Asset Analytics")
             if not df.empty:
                 color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
-                asset_types = sorted(df['ASSET TYPE'].unique())
+                
+                # --- CHANGE 111: GROUP BY MODEL ---
+                # Clean up empty models
+                valid_models = [m for m in df['MODEL'].unique() if str(m).strip() != ""]
+                models = sorted(valid_models)
                 
                 # --- MATRIX GRID LAYOUT (4 COLS) ---
                 cols_per_row = 4
-                rows_needed = (len(asset_types) + cols_per_row - 1) // cols_per_row
+                rows_needed = (len(models) + cols_per_row - 1) // cols_per_row
                 
                 for row_idx in range(rows_needed):
                     cols = st.columns(cols_per_row)
                     for col_idx in range(cols_per_row):
                         idx = row_idx * cols_per_row + col_idx
-                        if idx < len(asset_types):
-                            atype = asset_types[idx]
-                            sub = df[df['ASSET TYPE'] == atype]
+                        if idx < len(models):
+                            model_name = models[idx]
+                            sub = df[df['MODEL'] == model_name]
+                            
+                            # Get Asset Type for context (use first found)
+                            atype_context = sub['ASSET TYPE'].iloc[0] if not sub.empty else "Unknown"
+                            
                             with cols[col_idx]:
-                                # Clean Pie Chart (Minimalist)
-                                fig = px.pie(sub, names='CONDITION', title=f"<b>{atype}</b><br><span style='font-size:12px; color:gray'>Total: {len(sub)}</span>",
+                                # Clean Pie Chart
+                                title_html = f"<b>{model_name}</b><br><span style='font-size:11px; color:gray'>{atype_context} (Total: {len(sub)})</span>"
+                                
+                                fig = px.pie(sub, names='CONDITION', 
+                                             title=title_html,
                                              color='CONDITION', color_discrete_map=color_map, hole=0.5)
-                                fig.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0), height=200)
+                                fig.update_layout(showlegend=False, margin=dict(t=40, b=0, l=0, r=0), height=200)
                                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No assets found.")
