@@ -10,12 +10,19 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & STYLING
+# 1. CONFIGURATION & CLEAN UI STYLING
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
+    /* HIDE STREAMLIT DEFAULT UI ELEMENTS */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stAppDeployButton {display: none;}
+    
+    /* PROFESSIONAL APP STYLING */
     .stApp {background-color: #f4f6f9;}
     div[data-testid="stForm"] {background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 5px solid #cfaa5e;}
     .stButton>button {width: 100%; border-radius: 6px; height: 45px; font-weight: 600; transition: 0.2s;}
@@ -227,7 +234,6 @@ else:
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
-                    # FIX: Force int
                     idx = int(match.index[0])
                     st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
                     
@@ -261,7 +267,6 @@ else:
                     loc = c2.selectbox("Location", stores)
                     
                     if st.form_submit_button("Return"):
-                        # FIX: Force int
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         ws_inv.update_cell(sheet_row, 6, stat)
@@ -391,7 +396,6 @@ else:
                     match = df[df['SERIAL'].astype(str).str.contains(q, case=False)]
                     if not match.empty:
                         sel = st.selectbox("Select", match['SERIAL'].tolist())
-                        # FIX: Cast to INT to prevent JSON error
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         
@@ -406,7 +410,6 @@ else:
                                     force_reload(); st.success("Updated"); st.rerun()
                         with c2:
                             if st.button("DELETE PERMANENTLY"):
-                                # FIX: Cast to INT here too
                                 ws_inv.delete_rows(sheet_row)
                                 force_reload(); st.success("Deleted"); st.rerun()
 
