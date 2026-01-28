@@ -12,59 +12,46 @@ import hashlib
 # ==========================================
 # 1. CONFIGURATION & UI REPAIR
 # ==========================================
-st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-    /* --- 1. REMOVE TOP GAP --- */
+    /* --- 1. FULL SCREEN CLEANUP --- */
     .block-container {
-        padding-top: 1rem !important;
-        margin-top: 0rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
     }
     
-    /* --- 2. HIDE JUNK ELEMENTS --- */
-    [data-testid="stDecoration"] {display: none !important;}
-    .stAppDeployButton {display: none !important;}
+    /* Hide ALL Header/Footer/Sidebar Elements */
+    header {display: none !important;}
     footer {display: none !important;}
-    [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    [data-testid="stSidebar"] {display: none !important;} /* Force Sidebar Hidden */
+    [data-testid="collapsedControl"] {display: none !important;} /* Hide Sidebar Button */
+    .stAppDeployButton {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
     
-    /* --- 3. THE SIDEBAR TOGGLE FIX --- */
-    /* Hide the container, but keep it in layout */
-    header {
-        visibility: hidden !important;
-    }
-    
-    /* Aggressively hide the toolbar (GitHub, Settings) */
-    [data-testid="stToolbar"] {
-        visibility: hidden !important; 
-        display: none !important;
-    }
-    
-    /* MAKE THE SIDEBAR BUTTON VISIBLE AGAIN */
-    [data-testid="collapsedControl"] {
-        visibility: visible !important;
-        display: block !important;
-        color: #333333 !important;
-        z-index: 100000 !important; /* Force it to top */
-        position: relative !important;
-        top: 0px !important;
-        left: 0px !important;
+    /* --- 2. TOP MENU STYLING --- */
+    /* Style the navigation dropdown to look like a header */
+    div[data-testid="stSelectbox"] {
+        background-color: white;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        border-top: 4px solid #cfaa5e;
     }
 
-    /* --- 4. PROFESSIONAL STYLING --- */
+    /* --- 3. PROFESSIONAL CARDS --- */
     .stApp {background-color: #f4f7f6;}
     
-    /* Metric Cards */
     div[data-testid="metric-container"] {
         background: white;
         border: 1px solid #e0e0e0;
         padding: 15px;
         border-radius: 10px;
-        border-left: 5px solid #cfaa5e;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
-    /* Chart Cards */
     div[data-testid="column"] {
         background: white;
         border-radius: 12px;
@@ -79,7 +66,7 @@ st.markdown("""
         z-index: 50;
     }
 
-    /* Buttons */
+    /* --- 4. BUTTONS --- */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
@@ -173,13 +160,11 @@ def load_data_initial():
         if not raw:
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
-        
         rows = raw[1:]
         clean_rows = []
         for r in rows:
             while len(r) < len(HEADERS): r.append("")
             clean_rows.append(r[:len(HEADERS)])
-            
         return pd.DataFrame(clean_rows, columns=HEADERS)
     except: return pd.DataFrame(columns=HEADERS)
 
@@ -271,30 +256,37 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- GLOBAL SIDEBAR ---
-    st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
-    st.sidebar.markdown("---")
+    # --- NEW TOP MENU (REPLACES SIDEBAR) ---
+    c_nav, c_user, c_act = st.columns([3, 1, 1])
     
-    if st.session_state['role'] == "Technician":
-        nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
-    else:
-        nav = st.sidebar.radio("Admin Control", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
-    
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🔄 Sync Database"): 
-        force_reload()
-        st.success("Synced")
-        time.sleep(0.5)
-        st.rerun()
-    if st.sidebar.button("🚪 Logout"): 
-        clear_login_session()
-        st.rerun()
+    with c_nav:
+        # DETERMINE MENU OPTIONS BASED ON ROLE
+        if st.session_state['role'] == "Technician":
+            options = ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"]
+        else:
+            options = ["📊 Dashboard", "👥 User Manager", "🛠️ Asset Control", "📦 Database View"]
+            
+        nav = st.selectbox("📍 Navigate:", options, label_visibility="collapsed")
 
-    # --- TECHNICIAN ---
-    if st.session_state['role'] == "Technician":
-        st.title(f"{nav}")
+    with c_user:
+        st.markdown(f"<div style='padding-top: 10px; text-align:right;'><b>👤 {st.session_state['user']}</b></div>", unsafe_allow_html=True)
 
+    with c_act:
+        c_refresh, c_logout = st.columns(2)
+        if c_refresh.button("🔄"): 
+            force_reload()
+            st.rerun()
+        if c_logout.button("🚪"): 
+            clear_login_session()
+            st.rerun()
+
+    st.markdown("---")
+
+    # --- TECHNICIAN LOGIC ---
+    if st.session_state['role'] == "Technician":
+        
         if nav == "🚀 Issue Asset":
+            st.subheader("🚀 Issue Asset")
             c1, c2 = st.columns([2, 1])
             with c1: search = st.text_input("Enter Serial Number")
             with c2:
@@ -323,6 +315,7 @@ else:
                 else: st.error("Not Found")
 
         elif nav == "📥 Return Asset":
+            st.subheader("📥 Return Asset")
             my = df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')]
             if my.empty: st.info("No returns pending.")
             else:
@@ -341,6 +334,7 @@ else:
                         force_reload(); st.success("Returned!"); st.rerun()
 
         elif nav == "➕ Add Asset":
+            st.subheader("➕ Add New Asset")
             with st.form("add"):
                 c1,c2 = st.columns(2)
                 typ = c1.selectbox("Type", ["Camera", "Reader", "Controller", "Lock"])
@@ -357,6 +351,7 @@ else:
                     else: st.error("Duplicate Serial")
 
         elif nav == "⚡ Bulk Import":
+            st.subheader("⚡ Bulk Import")
             if st.session_state.get('can_import'):
                 st.download_button("Template", to_excel(pd.DataFrame(columns=HEADERS)), "template.xlsx")
                 up = st.file_uploader("Upload Excel", type=['xlsx'])
@@ -374,13 +369,13 @@ else:
             else: st.error("Permission Denied")
 
         elif nav == "🎒 My Inventory":
+            st.subheader("🎒 My Inventory")
             st.dataframe(df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')])
 
     # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
-        st.title(f"{nav}")
         
-        if nav == "Dashboard":
+        if nav == "📊 Dashboard":
             st.markdown("### 📈 System Overview")
             if not df.empty:
                 c1, c2, c3, c4 = st.columns(4)
@@ -393,7 +388,6 @@ else:
                 color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
                 valid_models = sorted([m for m in df['MODEL'].unique() if str(m).strip() != ""])
                 
-                # GRID LAYOUT (3 Columns)
                 cols_per_row = 3
                 rows_needed = (len(valid_models) + cols_per_row - 1) // cols_per_row
                 
@@ -413,7 +407,7 @@ else:
             else:
                 st.info("No assets found.")
 
-        elif nav == "Manage Users":
+        elif nav == "👥 User Manager":
             st.subheader("👥 User Management")
             ws_u = get_worksheet("Users")
             if ws_u:
@@ -432,7 +426,7 @@ else:
                             ws_u.delete_rows(cell.row)
                             st.success("Deleted"); st.rerun()
 
-        elif nav == "Master Asset Control":
+        elif nav == "🛠️ Asset Control":
             st.subheader("🛠️ Master Asset Control")
             tab1, tab2 = st.tabs(["Add Asset", "Edit/Delete"])
             
@@ -484,7 +478,8 @@ else:
                                 ws_inv.delete_rows(sheet_row)
                                 force_reload(); st.success("Deleted"); st.rerun()
 
-        elif nav == "Database":
+        elif nav == "📦 Database View":
+            st.subheader("📦 Database View")
             c1, c2 = st.columns([6, 1])
             c1.write("")
             c2.download_button("📥 Export", to_excel(df), "data.xlsx")
