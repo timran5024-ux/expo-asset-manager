@@ -11,9 +11,13 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. EXECUTIVE THEME ENGINE (V172)
+# 1. FIXED SIDEBAR & EXECUTIVE THEME (V174)
 # ==========================================
-st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Asset Management Pro", 
+    layout="wide", 
+    initial_sidebar_state="expanded" # Keep sidebar open on load
+)
 
 def get_base64_bin(file_path):
     with open(file_path, "rb") as f:
@@ -39,6 +43,8 @@ if os.path.exists("logo.png"):
 st.markdown(f"""
 <style>
     {bg_css}
+    /* HIDE SIDEBAR TOGGLE TO LOCK IT OPEN */
+    button[kind="headerNoPadding"] {{ display: none !important; }}
     header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
 
     section[data-testid="stSidebar"] {{
@@ -84,8 +90,14 @@ def get_client():
 
 def get_ws(name):
     sh = get_client().open_by_key(SHEET_ID)
-    try: return sh.worksheet(name)
-    except: return sh.sheet1
+    try:
+        return sh.worksheet(name)
+    except:
+        if name == "Users":
+            new_ws = sh.add_worksheet(title="Users", rows="100", cols="5")
+            new_ws.append_row(["Username", "PIN", "Permission"])
+            return new_ws
+        return sh.sheet1
 
 def load_data():
     ws = get_ws("Sheet1")
@@ -95,7 +107,7 @@ def load_data():
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Master_Inventory')
+        df.to_excel(writer, index=False, sheet_name='Inventory_Master')
     return output.getvalue()
 
 # ==========================================
@@ -110,25 +122,33 @@ if not st.session_state['logged_in']:
         st.markdown('<br><br>', unsafe_allow_html=True)
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         if os.path.exists("logo.png"): st.image("logo.png", width=120)
-        mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
-        with st.form("login"):
-            p = st.text_input("Password", type="password")
+        mode = st.radio("LOGIN", ["Technician", "Admin"], horizontal=True)
+        with st.form("login_form"):
+            u = st.text_input("User ID") if mode == "Technician" else "Administrator"
+            p = st.text_input("PIN / Password", type="password")
             if st.form_submit_button("SIGN IN"):
                 if mode == "Admin" and p == ADMIN_PASSWORD:
                     st.session_state.update(logged_in=True, user="Administrator", role="Admin")
                     st.rerun()
+                elif mode == "Technician":
+                    ws_u = get_ws("Users")
+                    recs = ws_u.get_all_records()
+                    if any(str(r['Username'])==u and str(r['PIN'])==p for r in recs):
+                        st.session_state.update(logged_in=True, user=u, role="Technician")
+                        st.rerun()
+                    else: st.error("Access Refused")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     df = load_data()
-    ws_inv = get_ws("Sheet1")
     
     with st.sidebar:
         if os.path.exists("logo.png"): st.image("logo.png", width=140)
         st.write(f"USER: **{st.session_state['user']}**")
         st.divider()
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ISSUE ASSET", "REGISTER ASSET"]
-        nav = st.radio("Menu", menu)
-        if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
+        nav = st.radio("Navigation Menu", menu)
+        st.markdown("<br>" * 5, unsafe_allow_html=True)
+        if st.button("Logout System", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- DASHBOARD ---
     if nav == "DASHBOARD":
@@ -143,10 +163,10 @@ else:
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Inventory Summary</p>
+                <p class="metric-title">Security Summary</p>
                 <p class="hw-count">📹 Cameras: {c_cam}</p>
-                <p class="hw-count">💳 Card Readers: {c_rdr}</p>
-                <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
+                <p class="hw-count">💳 Readers: {c_rdr}</p>
+                <p class="hw-count">🖥️ Panels: {c_pnl}</p>
                 <p class="hw-count">🧲 Mag Locks: {c_lck}</p>
             </div>""", unsafe_allow_html=True)
         with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
@@ -159,19 +179,6 @@ else:
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- DATABASE ---
-    elif nav == "DATABASE":
-        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        col_s, col_dl = st.columns([4, 1])
-        with col_s: q = st.text_input("🔍 Global Search")
-        with col_dl: 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button("📥 DOWNLOAD EXCEL", to_excel(df), "Security_Inventory_Master.xlsx", use_container_width=True)
-        
-        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
-        st.dataframe(f_df, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
     # --- ASSET CONTROL ---
     elif nav == "ASSET CONTROL":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
@@ -179,14 +186,68 @@ else:
         with t1:
             with st.form("manual_add"):
                 c1, c2, c3 = st.columns(3)
-                at = c1.text_input("Asset Type (Manual)")
+                at = c1.text_input("Asset Type (e.g. Camera)")
                 br = c2.text_input("Brand")
                 md = c3.text_input("Model")
                 sn = c1.text_input("Serial (SN)")
                 mc = c2.text_input("MAC Address")
                 lo = c3.selectbox("Store", ["MOBILITY STORE-10", "MOBILITY STORE-8", "BASEMENT"])
-                stat = st.selectbox("Status", ["Available/New", "Available/Used", "Faulty"])
-                if st.form_submit_button("REGISTER"):
-                    ws_inv.append_row([at, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                st_val = st.selectbox("Status", ["Available/New", "Available/Used", "Faulty"])
+                if st.form_submit_button("REGISTER ASSET"):
+                    get_ws("Sheet1").append_row([at, br, md, sn, mc, st_val, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                    st.success("Registered!"); time.sleep(1); st.rerun()
+        with t2:
+            s_sn = st.text_input("SN to Modify")
+            if s_sn:
+                match = df[df['SERIAL'] == s_sn]
+                if not match.empty:
+                    with st.form("mod_f"):
+                        n_st = st.selectbox("Update Status", ["Available/New", "Available/Used", "Issued", "Faulty"])
+                        if st.form_submit_button("SAVE"):
+                            ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
+                            get_ws("Sheet1").update_cell(ridx, 6, n_st)
+                            st.success("Saved"); time.sleep(1); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- USER MANAGER (REPAIRED & FIXED) ---
+    elif nav == "USER MANAGER":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        ws_u = get_ws("Users")
+        user_records = ws_u.get_all_records()
+        udf = pd.DataFrame(user_records) if user_records else pd.DataFrame(columns=["Username", "PIN", "Permission"])
+        
+        st.markdown("### Personnel Directory")
+        st.dataframe(udf, use_container_width=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.form("u_new"):
+                st.write("**New Technician Account**")
+                un, up = st.text_input("Username"), st.text_input("PIN")
+                if st.form_submit_button("CREATE ACCOUNT"):
+                    ws_u.append_row([un, up, "Standard"])
                     st.success("Done!"); time.sleep(1); st.rerun()
+        with c2:
+            if not udf.empty:
+                st.write("**Access Permissions**")
+                target = st.selectbox("Select User", udf['Username'].tolist())
+                new_p = st.selectbox("Level", ["Standard", "Bulk_Allowed"])
+                if st.button("SAVE PERM"):
+                    cell = ws_u.find(target)
+                    ws_u.update_cell(cell.row, 3, new_p)
+                    st.success("Updated")
+                if st.button("DELETE USER"):
+                    ws_u.delete_rows(ws_u.find(target).row)
+                    st.success("Deleted"); time.sleep(1); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif nav == "DATABASE":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        col_s, col_dl = st.columns([4, 1.2])
+        with col_s: q = st.text_input("🔍 Search Database")
+        with col_dl: 
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.download_button("📥 EXCEL", to_excel(df), "Inventory_Master.xlsx", use_container_width=True)
+        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
+        st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
