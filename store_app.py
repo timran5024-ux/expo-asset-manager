@@ -16,30 +16,42 @@ st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wi
 
 st.markdown("""
 <style>
-    /* --- 1. SIDEBAR TOGGLE FIX (CRITICAL) --- */
-    /* Ensure the header container exists but is transparent */
-    header[data-testid="stHeader"] {
-        background: transparent !important;
-        z-index: 100 !important;
+    /* --- 1. REMOVE TOP GAP & JUNK --- */
+    /* Remove the huge white space at the top */
+    .block-container {
+        padding-top: 1rem !important;
+        margin-top: -2rem !important;
     }
-    /* Force the 'Open Sidebar' arrow/hamburger to be visible and dark colored */
-    button[kind="header"] {
-        background-color: transparent !important;
-        color: #333333 !important; /* Dark Grey Arrow */
-        font-weight: bold !important;
-        visibility: visible !important;
-        display: block !important;
-    }
+    
     /* Hide the Decoration Line (Rainbow) */
     [data-testid="stDecoration"] {display: none !important;}
     
-    /* --- 2. HIDE JUNK (Deploy, Footer, Toolbar) --- */
-    .stAppDeployButton {display: none !important;}
-    footer {display: none !important;}
+    /* Hide the right-side toolbar (GitHub, Settings) */
     [data-testid="stToolbar"] {visibility: hidden !important;}
     [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    
+    /* --- 2. FIX SIDEBAR TOGGLE (CRITICAL) --- */
+    /* Make the header transparent but existing so the button sits in it */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: 3rem !important; /* Shrink header height */
+    }
+    
+    /* Force the 'Open Sidebar' arrow/hamburger to be VISIBLE */
+    button[kind="header"] {
+        background-color: transparent !important;
+        color: #333333 !important; /* Dark Grey Arrow */
+        visibility: visible !important;
+        display: block !important;
+        z-index: 9999 !important;
+    }
 
-    /* --- 3. PROFESSIONAL STYLING --- */
+    /* --- 3. HIDE 'MANAGE APP' & FOOTER --- */
+    .stAppDeployButton {display: none !important;}
+    footer {display: none !important;}
+    #MainMenu {visibility: hidden !important;}
+
+    /* --- 4. PROFESSIONAL STYLING --- */
     .stApp {background-color: #f4f7f6;}
     
     /* Metric Cards (Glassy) */
@@ -261,17 +273,13 @@ else:
     ws_inv = get_worksheet("Sheet1")
 
     # --- GLOBAL SIDEBAR ---
-    st.sidebar.markdown("### 👤 User Profile")
-    st.sidebar.info(f"User: **{st.session_state['user']}**\nRole: **{st.session_state['role']}**")
+    st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
+    st.sidebar.markdown("---")
     
-    st.sidebar.markdown("### 📍 Navigation")
-    
-    # NAVIGATION LOGIC
     if st.session_state['role'] == "Technician":
-        nav = st.sidebar.radio("Go to:", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
+        nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
     else:
-        # ADMIN MENU - Ensure Manage Users is here
-        nav = st.sidebar.radio("Control Panel:", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+        nav = st.sidebar.radio("Admin Control", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
     
     st.sidebar.markdown("---")
     if st.sidebar.button("🔄 Sync Database"): 
