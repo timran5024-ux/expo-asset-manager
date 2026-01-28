@@ -83,26 +83,17 @@ def download_data():
         
         # SELF-HEALING: If empty or headers are wrong, fix them immediately
         if not raw or raw[0] != HEADERS:
-            # We don't overwrite if data exists, we just rely on index mapping
-            # But if it's empty, we init
             if not raw:
                 ws.append_row(HEADERS)
                 return pd.DataFrame(columns=HEADERS)
         
-        # Read Data with Strict Headers (ignoring whatever is in row 1 if it mismatches slightly)
-        # We assume the columns are in the correct order:
-        # Col 0: Type, 1: Brand, 2: Model, 3: Serial...
         rows = raw[1:]
         if not rows: return pd.DataFrame(columns=HEADERS)
         
-        # Create DataFrame mapping by Index to ensure stability
-        # If a row is short, pad it
         clean_rows = []
         for r in rows:
-            # Pad row if shorter than headers
             while len(r) < len(HEADERS):
                 r.append("")
-            # Truncate if longer
             clean_rows.append(r[:len(HEADERS)])
             
         df = pd.DataFrame(clean_rows, columns=HEADERS)
@@ -216,7 +207,6 @@ else:
                         except: pass
             
             if search:
-                # Matches strict 'SERIAL' column (Index 3)
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
@@ -226,10 +216,6 @@ else:
                             tkt = st.text_input("Ticket #")
                             if st.form_submit_button("Confirm Issue"):
                                 idx = match.index[0]+2
-                                # Update Columns: 6=Loc, 7=IssuedTo, 8=Ticket (Indices start at 1 in Sheets)
-                                # Sheet Cols: A=1, B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9
-                                # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET
-                                #           1     2      3      4      5    6     7     8       9
                                 ws_inv.update_cell(idx, 6, "Issued")
                                 ws_inv.update_cell(idx, 8, st.session_state['user'])
                                 ws_inv.update_cell(idx, 9, tkt)
@@ -248,9 +234,9 @@ else:
                     loc = c2.selectbox("Location", get_all_stores(df))
                     if st.form_submit_button("Return"):
                         idx = df[df['SERIAL']==sel].index[0]+2
-                        ws_inv.update_cell(idx, 6, stat) # Condition
-                        ws_inv.update_cell(idx, 7, loc) # Location
-                        ws_inv.update_cell(idx, 8, "") # Issued To (Clear)
+                        ws_inv.update_cell(idx, 6, stat)
+                        ws_inv.update_cell(idx, 7, loc)
+                        ws_inv.update_cell(idx, 8, "")
                         force_sync(); st.success("Returned!"); st.rerun()
 
         elif nav == "➕ Add Asset":
@@ -263,7 +249,6 @@ else:
                 stat = st.selectbox("Condition", ["Available/New", "Available/Used"])
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
-                        # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET, TIME, USER
                         ws_inv.append_row([typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']])
                         force_sync(); st.success("Saved!"); st.rerun()
                     else: st.error("Duplicate Serial")
@@ -277,7 +262,6 @@ else:
                     d.columns = [str(c).strip().upper() for c in d.columns]
                     rows = []
                     for i,r in d.iterrows():
-                        # Smart Map
                         s = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
                         if s and s not in df['SERIAL'].astype(str).tolist():
                             rows.append([
@@ -348,7 +332,6 @@ else:
                             rows = []
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
-                                # HEADERS: TYPE, BRAND, MODEL, SERIAL, MAC, COND, LOC, ISSUED, TICKET, TIME, USER
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             ws_inv.append_rows(rows)
                             force_sync(); st.success(f"Added {qty} items"); st.rerun()
@@ -360,7 +343,6 @@ else:
                     if not match.empty:
                         sel = st.selectbox("Select", match['SERIAL'].tolist())
                         idx = df[df['SERIAL']==sel].index[0]+2
-                        
                         c1, c2 = st.columns(2)
                         with c1:
                             with st.form("upd"):
@@ -378,12 +360,16 @@ else:
             st.subheader("🏥 Database Health")
             st.warning("Use this to fix corrupted columns or headers.")
             if st.button("FORCE REPAIR HEADERS"):
-                # Overwrite Row 1 with correct headers
-                # Clears first row then writes headers
                 ws_inv.update("A1:K1", [HEADERS])
                 force_sync()
                 st.success("Headers Repaired. Check Database tab.")
 
         elif nav == "Database":
+            # --- LAYOUT TRICK FOR TOP-RIGHT EXPORT BUTTON ---
+            col_title, col_btn = st.columns([5, 1])
+            with col_title:
+                st.subheader("📦 Database View")
+            with col_btn:
+                st.download_button("📥 Export Excel", to_excel(df), f"Inv_{datetime.now().date()}.xlsx")
+            
             st.dataframe(df, use_container_width=True)
-            st.download_button("Export", to_excel(df), "data.xlsx")
