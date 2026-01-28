@@ -16,45 +16,45 @@ st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wi
 
 st.markdown("""
 <style>
-    /* --- 1. REMOVE TOP GAP & JUNK --- */
-    /* Remove the huge white space at the top */
+    /* --- 1. REMOVE TOP GAP --- */
     .block-container {
-        padding-top: 1rem !important;
-        margin-top: -2rem !important;
+        padding-top: 1rem !important; /* Reduce top padding */
+        margin-top: 0rem !important;
     }
     
-    /* Hide the Decoration Line (Rainbow) */
+    /* --- 2. HIDE JUNK ELEMENTS --- */
+    /* Hide the top colored line */
     [data-testid="stDecoration"] {display: none !important;}
     
-    /* Hide the right-side toolbar (GitHub, Settings) */
-    [data-testid="stToolbar"] {visibility: hidden !important;}
-    [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    /* Hide the "Deploy" and "Manage App" buttons */
+    .stAppDeployButton {display: none !important;}
     
-    /* --- 2. FIX SIDEBAR TOGGLE (CRITICAL) --- */
-    /* Make the header transparent but existing so the button sits in it */
-    header[data-testid="stHeader"] {
+    /* Hide the Footer "Made with Streamlit" */
+    footer {display: none !important;}
+    
+    /* --- 3. THE SIDEBAR FIX --- */
+    /* We DO NOT hide the header, because it holds the sidebar button. */
+    header {
         background: transparent !important;
-        height: 3rem !important; /* Shrink header height */
     }
     
-    /* Force the 'Open Sidebar' arrow/hamburger to be VISIBLE */
-    button[kind="header"] {
-        background-color: transparent !important;
-        color: #333333 !important; /* Dark Grey Arrow */
+    /* Instead, we hide the TOOLBAR inside the header (GitHub, Settings) */
+    [data-testid="stToolbar"] {
+        visibility: hidden !important; 
+        display: none !important;
+    }
+    
+    /* Force the Sidebar Toggle Button to be visible */
+    [data-testid="collapsedControl"] {
         visibility: visible !important;
         display: block !important;
-        z-index: 9999 !important;
+        color: #333333 !important;
     }
-
-    /* --- 3. HIDE 'MANAGE APP' & FOOTER --- */
-    .stAppDeployButton {display: none !important;}
-    footer {display: none !important;}
-    #MainMenu {visibility: hidden !important;}
 
     /* --- 4. PROFESSIONAL STYLING --- */
     .stApp {background-color: #f4f7f6;}
     
-    /* Metric Cards (Glassy) */
+    /* Cards */
     div[data-testid="metric-container"] {
         background: white;
         border: 1px solid #e0e0e0;
@@ -64,7 +64,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
-    /* Chart Cards */
+    /* Chart Containers */
     div[data-testid="column"] {
         background: white;
         border-radius: 12px;
@@ -174,7 +174,6 @@ def load_data_initial():
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
         
-        # Self-healing headers logic
         rows = raw[1:]
         clean_rows = []
         for r in rows:
@@ -274,7 +273,6 @@ else:
 
     # --- GLOBAL SIDEBAR ---
     st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
-    st.sidebar.markdown("---")
     
     if st.session_state['role'] == "Technician":
         nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
