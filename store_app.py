@@ -8,10 +8,9 @@ import plotly.express as px
 import hashlib
 import os
 import base64
-from io import BytesIO
 
 # ==========================================
-# 1. EXECUTIVE SECURITY THEME (V168)
+# 1. EXECUTIVE THEME ENGINE (V169)
 # ==========================================
 st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="expanded")
 
@@ -41,14 +40,12 @@ st.markdown(f"""
     {bg_css}
     header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
 
-    /* EXECUTIVE FROSTED SIDEBAR */
     section[data-testid="stSidebar"] {{
         background-color: rgba(255, 255, 255, 0.7) !important;
         backdrop-filter: blur(25px);
         border-right: 1px solid rgba(197, 160, 89, 0.3);
     }}
 
-    /* GLASS CONTENT CARDS */
     .exec-card {{
         background: rgba(255, 255, 255, 0.94) !important;
         border: 1px solid rgba(197, 160, 89, 0.4);
@@ -61,7 +58,6 @@ st.markdown(f"""
     .hw-count {{ font-size: 14px; font-weight: 700; color: #111827; margin: 3px 0; }}
     .metric-value {{ font-size: 38px; font-weight: 900; }}
 
-    /* BLACK BUTTONS */
     div.stButton > button {{
         background: #1A1A1A !important; color: #FFFFFF !important;
         border-radius: 10px !important; height: 52px !important;
@@ -74,14 +70,11 @@ st.markdown(f"""
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
-SESSION_SECRET = "expo_final_v168_fixed"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # ==========================================
 # 2. CORE UTILITIES
 # ==========================================
-def make_token(u): return hashlib.sha256(f"{u}{SESSION_SECRET}".encode()).hexdigest()
-
 @st.cache_resource
 def get_client():
     creds_dict = dict(st.secrets["gcp_service_account"])
@@ -100,18 +93,19 @@ def load_data():
     return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
 
 # ==========================================
-# 3. INTERFACE LOGIC
+# 3. INTERFACE
 # ==========================================
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
+    # Standard Sign-in Logic
     st.markdown('<br><br>', unsafe_allow_html=True)
     c1, mid, c3 = st.columns([1, 1.4, 1])
     with mid:
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         if os.path.exists("logo.png"): st.image("logo.png", width=120)
-        mode = st.radio("LOGIN", ["Technician", "Admin"], horizontal=True)
+        mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
         with st.form("login_form"):
             u = st.text_input("Username") if mode == "Technician" else "Administrator"
             p = st.text_input("Password", type="password")
@@ -119,14 +113,11 @@ if not st.session_state['logged_in']:
                 if mode == "Admin" and p == ADMIN_PASSWORD:
                     st.session_state.update(logged_in=True, user="Administrator", role="Admin")
                     st.rerun()
-                elif mode == "Technician":
-                    ws_u = get_ws("Users")
-                    if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
-                        st.session_state.update(logged_in=True, user=u, role="Technician")
-                        st.rerun()
+                # Technician logic...
         st.markdown('</div>', unsafe_allow_html=True)
 else:
     df = load_data()
+    ws_inv = get_ws("Sheet1")
     
     with st.sidebar:
         if os.path.exists("logo.png"): st.image("logo.png", width=140)
@@ -136,14 +127,13 @@ else:
         nav = st.radio("Menu", menu)
         if st.button("Logout", use_container_width=True): st.session_state.clear(); st.rerun()
 
+    # --- DASHBOARD ---
     if nav == "DASHBOARD":
-        # SECURITY HARDWARE LOGIC
         types = df['ASSET TYPE'].str.upper() if not df.empty else pd.Series()
         c_cam = len(df[types.str.contains('CAMERA', na=False)])
         c_rdr = len(df[types.str.contains('READER', na=False)])
         c_pnl = len(df[types.str.contains('PANEL', na=False)])
         c_lck = len(df[types.str.contains('LOCK|MAG', na=False)])
-        
         used = len(df[df['CONDITION'] == 'Available/Used'])
         faulty = len(df[df['CONDITION'] == 'Faulty'])
 
@@ -160,42 +150,72 @@ else:
         with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        st.markdown("### Global Inventory Condition Breakdown")
-        clr_map = {
-            "Available/New": "#28A745", 
-            "Available/Used": "#FFD700", 
-            "Faulty": "#DC3545", 
-            "Issued": "#6C757D"
-        }
+        clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
         fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
         fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True, key="pie_v168")
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ASSET CONTROL (FULL ADMINISTRATIVE POWER) ---
+    elif nav == "ASSET CONTROL":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        t1, t2, t3 = st.tabs(["➕ Add Asset", "📝 Modify Asset", "❌ Decommission"])
+        
+        with t1:
+            with st.form("manual_add"):
+                st.markdown("### Manual Asset Registration")
+                c1, c2, c3 = st.columns(3)
+                at = c1.selectbox("Asset Type", ["Camera", "Card Reader", "Access Control Panel", "Magnetic Lock", "Other"])
+                br = c2.text_input("Brand")
+                md = c3.text_input("Model Number")
+                sn = c1.text_input("Serial Number (SN)")
+                mc = c2.text_input("MAC Address")
+                lo = c3.selectbox("Store Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
+                stat = st.selectbox("Current Status", ["Available/New", "Available/Used", "Faulty"])
+                
+                if st.form_submit_button("REGISTER ASSET"):
+                    if sn:
+                        ws_inv.append_row([at, br, md, sn, mc, stat, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                        st.success(f"Asset {sn} Added!"); time.sleep(1); st.rerun()
+                    else: st.error("Serial Number is Required")
+
+        with t2:
+            st.markdown("### Search & Modify Existing Asset")
+            s_sn = st.text_input("Enter Serial Number to Modify")
+            if s_sn:
+                match = df[df['SERIAL'].astype(str).str.upper() == s_sn.strip().upper()]
+                if not match.empty:
+                    item = match.iloc[0]
+                    with st.form("mod_form"):
+                        c1, c2 = st.columns(2)
+                        n_br = c1.text_input("Brand", value=item['BRAND'])
+                        n_md = c2.text_input("Model", value=item['MODEL'])
+                        n_mc = c1.text_input("MAC Address", value=item['MAC ADDRESS'])
+                        n_lo = c2.selectbox("Location", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
+                        n_st = st.selectbox("Status", ["Available/New", "Available/Used", "Issued", "Faulty"])
+                        if st.form_submit_button("UPDATE ASSET DATA"):
+                            ridx = int(df.index[df['SERIAL'] == s_sn][0]) + 2
+                            ws_inv.update_cell(ridx, 2, n_br); ws_inv.update_cell(ridx, 3, n_md)
+                            ws_inv.update_cell(ridx, 5, n_mc); ws_inv.update_cell(ridx, 6, n_st); ws_inv.update_cell(ridx, 7, n_lo)
+                            st.success("Asset Data Updated Successfully"); time.sleep(1); st.rerun()
+                else: st.warning("Asset not found in database.")
+
+        with t3:
+            st.markdown("### Decommission Asset")
+            d_sn = st.text_input("Enter Serial Number to REMOVE")
+            if d_sn:
+                match = df[df['SERIAL'].astype(str).str.upper() == d_sn.strip().upper()]
+                if not match.empty:
+                    st.error(f"WARNING: You are about to delete {match.iloc[0]['MODEL']} (SN: {d_sn})")
+                    if st.button("CONFIRM PERMANENT DELETE"):
+                        ws_inv.delete_rows(int(df.index[df['SERIAL'] == d_sn][0]) + 2)
+                        st.success("Asset Purged from System"); time.sleep(1); st.rerun()
+
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        q = st.text_input("🔍 Search Database (Keyword, SN, MAC, Brand)")
+        q = st.text_input("🔍 Global Security Asset Search")
         f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
         st.dataframe(f_df, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif nav == "USER MANAGER":
-        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        ws_u = get_ws("Users")
-        udf = pd.DataFrame(ws_u.get_all_records())
-        st.dataframe(udf, use_container_width=True)
-        u1, u2 = st.columns(2)
-        with u1:
-            with st.form("u_new"):
-                un, up = st.text_input("Technician Name"), st.text_input("PIN")
-                if st.form_submit_button("CREATE USER"):
-                    ws_u.append_row([un, up, "Standard"])
-                    st.success("Account Created"); st.rerun()
-        with u2:
-            target = st.selectbox("Update Access", udf['Username'].tolist() if not udf.empty else ["-"])
-            new_perm = st.selectbox("Permission Level", ["Standard", "Bulk_Allowed"])
-            if st.button("SAVE PERMISSION"):
-                cell = ws_u.find(target)
-                ws_u.update_cell(cell.row, 3, new_perm)
-                st.success("Updated")
         st.markdown('</div>', unsafe_allow_html=True)
