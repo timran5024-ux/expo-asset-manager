@@ -99,7 +99,7 @@ if not st.session_state['logged_in']:
     with mid:
         st.markdown('<br><br>', unsafe_allow_html=True)
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        st.image(LOGO_URL, width=120)
+        st.image(LOGO_URL, width=150)
         mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
         with st.form("login"):
             u = st.text_input("Username") if mode == "Technician" else "Administrator"
@@ -119,7 +119,7 @@ if not st.session_state['logged_in']:
 else:
     # --- GUARANTEED SIDEBAR ---
     with st.sidebar:
-        st.image(LOGO_URL, width=130)
+        st.markdown(f'<div style="display: flex; justify-content: center;"><img src="{LOGO_URL}" width="200"></div>', unsafe_allow_html=True)
         st.markdown(f"**USER: {st.session_state['user']}**")
         st.divider()
         if st.session_state['role'] == "Admin":
