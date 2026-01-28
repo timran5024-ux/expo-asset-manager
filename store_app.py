@@ -239,11 +239,14 @@ else:
         elif nav == "➕ Add New Item":
             with st.form("add"):
                 c1,c2 = st.columns(2)
-                typ = c1.selectbox("Type", ["Camera", "Reader", "Controller", "Lock"])
+                # Flexible Asset Type for Technicians too? Let's keep dropdown for techs for consistency, or text?
+                # Usually techs follow strict categories, but let's make it text to be safe if that's the goal.
+                # Reverting to dropdown for tech for now to keep it simple, but Admin has full control.
+                typ = c1.selectbox("Type", ["Camera", "Reader", "Controller", "Lock", "Accessory"]) 
                 man = c1.text_input("Make"); mod = c2.text_input("Model")
                 sn = c2.text_input("Serial"); mac = c1.text_input("MAC")
-                loc = c2.selectbox("Location", get_all_stores(df))
-                stat = st.selectbox("Status", ["Available/New", "Available/Used"])
+                loc = c2.selectbox("Loc", get_all_stores(df))
+                stat = st.selectbox("Stat", ["Available/New", "Available/Used"])
                 if st.form_submit_button("Save"):
                     if sn not in df['Serial Number'].astype(str).tolist():
                         ws_inv.append_row([typ, man, mod, sn, mac, stat, "", "", loc, "", get_timestamp(), st.session_state['user']])
@@ -312,13 +315,13 @@ else:
             
             tab_add, tab_edit = st.tabs(["➕ Add Asset (Manual)", "✏️ Edit / Delete Asset"])
             
-            # --- TAB 1: ADD ASSET (MATCHING YOUR PIC FORMAT) ---
+            # --- TAB 1: ADD ASSET (UPDATED TO TEXT INPUT) ---
             with tab_add:
-                st.info("Manually add assets to the database.")
+                st.info("Manually add assets to the database. 'Asset Type' accepts free text.")
                 with st.form("admin_add_asset"):
                     c1, c2, c3 = st.columns(3)
-                    # Mapping to your Yellow Header Logic
-                    atype = c1.selectbox("Asset Type", ["Camera", "Reader", "Controller", "Lock", "Accessory", "Switch", "Server"])
+                    # CHANGE: Use text_input instead of selectbox for maximum flexibility
+                    atype = c1.text_input("Asset Type", placeholder="e.g. Camera, Drone, Laptop")
                     brand = c2.text_input("Brand (Manufacturer)")
                     model = c3.text_input("Model")
                     
@@ -332,17 +335,17 @@ else:
                     qty = c8.number_input("Quantity", min_value=1, value=1)
                     
                     if st.form_submit_button("💾 Add to Database"):
-                        if not serial and qty == 1:
+                        if not atype:
+                            st.error("Asset Type is required.")
+                        elif not serial and qty == 1:
                             st.error("Serial Number is required for single items.")
                         elif serial in df['Serial Number'].astype(str).tolist():
                             st.error("Duplicate Serial Number.")
                         else:
-                            # If Qty > 1, auto-generate rows, otherwise just 1
                             timestamp = get_timestamp()
                             rows_to_add = []
                             for i in range(qty):
                                 s_final = serial if qty == 1 else f"{serial}-{i+1}"
-                                # Schema: [Type, Brand, Model, Serial, MAC, Condition, "", "", Location, "", Time, "ADMIN"]
                                 rows_to_add.append([atype, brand, model, s_final, mac, cond, "", "", loc, "", timestamp, "ADMIN"])
                             
                             ws_inv.append_rows(rows_to_add)
