@@ -8,9 +8,20 @@ from io import BytesIO
 import plotly.express as px
 from PIL import Image
 
-# ==========================================
-# 1. APP CONFIG
-# ==========================================
+# =====================================================
+# 🔒 CRITICAL PATCH — PREVENT append_rows CRASH
+# =====================================================
+from gspread.models import Worksheet
+
+if not hasattr(Worksheet, "append_rows"):
+    def append_rows(self, rows, **kwargs):
+        for row in rows:
+            self.append_row(row)
+    Worksheet.append_rows = append_rows
+
+# =====================================================
+# APP CONFIG
+# =====================================================
 st.set_page_config(
     page_title="Expo Asset Manager",
     page_icon="🏢",
@@ -18,28 +29,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
-<style>
-.stApp {background-color: #f4f6f9;}
-div[data-testid="stForm"] {
-    background: #ffffff;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    border-top: 5px solid #cfaa5e;
-}
-.stButton>button {
-    width: 100%;
-    border-radius: 6px;
-    height: 45px;
-    font-weight: 600;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# 2. CONSTANTS
-# ==========================================
+# =====================================================
+# CONSTANTS
+# =====================================================
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
 
@@ -61,68 +53,47 @@ HEADERS = [
     "TIMESTAMP", "USER"
 ]
 
-# ==========================================
-# 3. SAFE GOOGLE SHEETS CONNECTION
-# ==========================================
+# =====================================================
+# GOOGLE SHEETS CONNECTION
+# =====================================================
 @st.cache_resource
 def get_client():
-    try:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        if "\\n" in creds_dict["private_key"]:
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
-        return gspread.authorize(creds)
-    except Exception:
-        return None
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+    return gspread.authorize(creds)
 
 @st.cache_resource
 def get_worksheet(name):
     client = get_client()
-    if not client:
-        return None
     sh = client.open_by_key(SHEET_ID)
     try:
         return sh.worksheet(name)
     except:
         return sh.sheet1
 
-# ==========================================
-# 4. SAFE ROW INSERT (NO append_rows)
-# ==========================================
-def safe_add_data(ws, rows):
-    """
-    Works on all gspread versions (Streamlit Cloud safe)
-    """
-    for row in rows:
-        ws.append_row(row)
+# =====================================================
+# HELPERS
+# =====================================================
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ==========================================
-# 5. DATA ENGINE
-# ==========================================
 def load_data():
     ws = get_worksheet("Sheet1")
-    if not ws:
-        return pd.DataFrame(columns=HEADERS)
-
     raw = ws.get_all_values()
     if len(raw) <= 1:
         return pd.DataFrame(columns=HEADERS)
 
     rows = raw[1:]
-    clean = []
-    for r in rows:
-        while len(r) < len(HEADERS):
-            r.append("")
-        clean.append(r[:len(HEADERS)])
+    while any(len(r) < len(HEADERS) for r in rows):
+        for r in rows:
+            r += [""] * (len(HEADERS) - len(r))
 
-    return pd.DataFrame(clean, columns=HEADERS)
+    return pd.DataFrame(rows, columns=HEADERS)
 
 def force_reload():
     st.cache_data.clear()
     st.session_state["inventory_df"] = load_data()
-
-def timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def to_excel(df):
     bio = BytesIO()
@@ -130,9 +101,9 @@ def to_excel(df):
         df.to_excel(writer, index=False)
     return bio.getvalue()
 
-# ==========================================
-# 6. LOGIN
-# ==========================================
+# =====================================================
+# LOGIN
+# =====================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -146,12 +117,11 @@ def login_screen():
             p = st.text_input("PIN", type="password")
             if st.form_submit_button("Login"):
                 ws = get_worksheet("Users")
-                users = ws.get_all_records()
-                for user in users:
+                for user in ws.get_all_records():
                     if str(user["Username"]) == u and str(user["PIN"]) == p:
                         st.session_state.logged_in = True
-                        st.session_state.user = u
                         st.session_state.role = "Technician"
+                        st.session_state.user = u
                         st.session_state.can_import = user["Permissions"] == "Bulk_Allowed"
                         st.rerun()
                 st.error("Invalid credentials")
@@ -162,16 +132,16 @@ def login_screen():
             if st.form_submit_button("Login"):
                 if p == ADMIN_PASSWORD:
                     st.session_state.logged_in = True
-                    st.session_state.user = "Administrator"
                     st.session_state.role = "Admin"
+                    st.session_state.user = "Administrator"
                     st.session_state.can_import = True
                     st.rerun()
                 else:
                     st.error("Access denied")
 
-# ==========================================
-# 7. MAIN APP
-# ==========================================
+# =====================================================
+# MAIN APP
+# =====================================================
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
@@ -190,11 +160,54 @@ if st.sidebar.button("🚪 Logout"):
     st.session_state.logged_in = False
     st.rerun()
 
-# ==========================================
-# 8. TECHNICIAN
-# ==========================================
+# =====================================================
+# TECHNICIAN
+# =====================================================
 if st.session_state.role == "Technician":
     st.title("🛠 Technician Dashboard")
-    nav = st.selectbox("Menu", [
-        "🚀 Issue Asset", "📥 Return Asset",
-        "➕ Add Asset", "⚡ Bulk Impo
+    nav = st.selectbox("Menu", ["➕ Add Asset", "⚡ Bulk Import", "🎒 My Inventory"])
+
+    if nav == "➕ Add Asset":
+        with st.form("add"):
+            at = st.selectbox("Type", ["Camera", "Reader", "Controller", "Lock"])
+            brand = st.text_input("Brand")
+            model = st.text_input("Model")
+            serial = st.text_input("Serial")
+            mac = st.text_input("MAC")
+            loc = st.selectbox("Location", FIXED_STORES)
+            cond = st.selectbox("Condition", ["Available/New", "Available/Used"])
+
+            if st.form_submit_button("Save"):
+                ws_inv.append_rows([[
+                    at, brand, model, serial, mac,
+                    cond, loc, "", "", timestamp(), st.session_state.user
+                ]])
+                force_reload()
+                st.success("Asset Added")
+                st.rerun()
+
+    if nav == "⚡ Bulk Import" and st.session_state.can_import:
+        st.download_button("📄 Template", to_excel(pd.DataFrame(columns=HEADERS)), "template.xlsx")
+        up = st.file_uploader("Upload Excel", type=["xlsx"])
+        if up and st.button("Import"):
+            d = pd.read_excel(up).fillna("")
+            rows = []
+            for _, r in d.iterrows():
+                rows.append([
+                    r.get("ASSET TYPE", ""), r.get("BRAND", ""), r.get("MODEL", ""),
+                    r.get("SERIAL", ""), r.get("MAC ADDRESS", ""),
+                    "Available/New", r.get("LOCATION", ""),
+                    "", "", timestamp(), "BULK"
+                ])
+            ws_inv.append_rows(rows)
+            force_reload()
+            st.success(f"Imported {len(rows)} assets")
+
+# =====================================================
+# ADMIN DASHBOARD
+# =====================================================
+if st.session_state.role == "Admin":
+    st.title("📊 Admin Dashboard")
+    st.metric("Total Assets", len(df))
+    st.plotly_chart(px.pie(df, names="CONDITION"), use_container_width=True)
+    st.download_button("📥 Export", to_excel(df), "assets.xlsx")
