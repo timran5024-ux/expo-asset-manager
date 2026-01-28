@@ -84,11 +84,17 @@ def get_ws(name):
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
+    expected_columns = ["ASSET TYPE", "Brand", "Model", "Serial Number", "MAC Address", "CONDITION", "Location", "Issued To", "Issued Date", "Registered Date", "Registered By"]
     if len(vals) > 1:
-        df = pd.DataFrame(vals[1:], columns=vals[0])
+        headers = vals[0]
+        df = pd.DataFrame(vals[1:], columns=headers)
+        for col in expected_columns:
+            if col not in df.columns:
+                df[col] = ''
+        df = df[expected_columns]
         return df
     else:
-        return pd.DataFrame(columns=["ASSET TYPE", "Brand", "Model", "Serial Number", "MAC Address", "CONDITION", "Location", "Issued To", "Issued Date", "Registered Date", "Registered By"])
+        return pd.DataFrame(columns=expected_columns)
 # ==========================================
 # 3. INTERFACE
 # ==========================================
@@ -181,6 +187,7 @@ else:
            
             st.markdown('<div class="exec-card">', unsafe_allow_html=True)
             st.subheader("Recently Issued Assets")
+            df['Issued Date'] = pd.to_datetime(df['Issued Date'], errors='coerce')
             recent_issued = df[df['CONDITION'] == 'Issued'].sort_values('Issued Date', ascending=False).head(10)
             st.dataframe(recent_issued[['ASSET TYPE', 'Serial Number', 'Issued To', 'Issued Date']], use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
