@@ -10,78 +10,64 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & PROFESSIONAL UI CSS
+# 1. CONFIGURATION & UI REPAIR
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* --- 1. HEADER & SIDEBAR FIXES --- */
-    /* Hide the top decoration bar (rainbow line) */
-    [data-testid="stDecoration"] {display: none !important;}
-    
-    /* Hide the right-side toolbar (GitHub, Settings, etc) */
-    [data-testid="stToolbar"] {visibility: hidden !important; right: 9999px !important;}
-    [data-testid="stStatusWidget"] {visibility: hidden !important;}
-    
-    /* CRITICAL: Keep header visible so Sidebar Toggle works, but make it transparent */
+    /* --- 1. SIDEBAR TOGGLE FIX (CRITICAL) --- */
+    /* Ensure the header container exists but is transparent */
     header[data-testid="stHeader"] {
         background: transparent !important;
-        z-index: 1 !important;
+        z-index: 100 !important;
     }
-
-    /* --- 2. HIDE 'MANAGE APP' & FOOTER --- */
-    /* Aggressive hiding of the deploy button */
-    .stAppDeployButton {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        height: 0 !important;
-        width: 0 !important;
-        pointer-events: none !important;
+    /* Force the 'Open Sidebar' arrow/hamburger to be visible and dark colored */
+    button[kind="header"] {
+        background-color: transparent !important;
+        color: #333333 !important; /* Dark Grey Arrow */
+        font-weight: bold !important;
+        visibility: visible !important;
+        display: block !important;
     }
+    /* Hide the Decoration Line (Rainbow) */
+    [data-testid="stDecoration"] {display: none !important;}
+    
+    /* --- 2. HIDE JUNK (Deploy, Footer, Toolbar) --- */
+    .stAppDeployButton {display: none !important;}
     footer {display: none !important;}
-    #MainMenu {visibility: hidden !important;}
+    [data-testid="stToolbar"] {visibility: hidden !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
 
-    /* --- 3. PROFESSIONAL DASHBOARD CARDS --- */
-    /* Background Styling */
+    /* --- 3. PROFESSIONAL STYLING --- */
     .stApp {background-color: #f4f7f6;}
     
-    /* Metric Cards (Top Row) */
+    /* Metric Cards (Glassy) */
     div[data-testid="metric-container"] {
-        background-color: white;
+        background: white;
         border: 1px solid #e0e0e0;
-        padding: 20px;
+        padding: 15px;
         border-radius: 10px;
+        border-left: 5px solid #cfaa5e;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        border-left: 5px solid #cfaa5e; /* Gold accent */
     }
 
-    /* Chart Cards (The Matrix) */
+    /* Chart Cards */
     div[data-testid="column"] {
-        background-color: white;
+        background: white;
         border-radius: 12px;
         padding: 15px;
         border: 1px solid #f0f0f0;
-        transition: all 0.3s ease;
+        transition: transform 0.2s ease;
     }
-    /* Hover Effect: Lift up */
     div[data-testid="column"]:hover {
-        transform: translateY(-5px);
+        transform: scale(1.02);
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         border-color: #cfaa5e;
-        z-index: 10;
+        z-index: 50;
     }
 
-    /* --- 4. FORM & INPUT STYLING --- */
-    div[data-testid="stForm"] {
-        background: white;
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    }
-    
-    /* --- 5. BUTTON STYLING --- */
+    /* Buttons */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
@@ -93,8 +79,6 @@ st.markdown("""
     }
     .stButton>button:hover {
         background-color: #cfaa5e;
-        color: white;
-        border: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -164,30 +148,24 @@ def get_worksheet(name):
         except: return sh.sheet1
     except: return None
 
-# --- CRITICAL FIX: USE LOOP INSTEAD OF BATCH ADD ---
 def safe_add_rows(ws, rows_list):
-    """Adds rows one by one to avoid version conflict errors."""
+    """Adds rows one by one to avoid errors."""
     for row in rows_list:
         ws.append_row(row)
 
-# --- CRITICAL FIX: SELF-HEALING DATA LOADER ---
 def load_data_initial():
     ws = get_worksheet("Sheet1")
     if not ws: return pd.DataFrame(columns=HEADERS)
     try:
         raw = ws.get_all_values()
-        
-        # If empty, initialize headers
         if not raw:
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
-            
-        # If headers exist but might be wrong, just read data and force our headers
-        # This prevents KeyError if the sheet says "Serial Number" but we want "SERIAL"
+        
+        # Self-healing headers logic
         rows = raw[1:]
         clean_rows = []
         for r in rows:
-            # Ensure row length matches header length
             while len(r) < len(HEADERS): r.append("")
             clean_rows.append(r[:len(HEADERS)])
             
@@ -282,16 +260,21 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- SIDEBAR (FIXED) ---
-    st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
+    # --- GLOBAL SIDEBAR ---
+    st.sidebar.markdown("### 👤 User Profile")
+    st.sidebar.info(f"User: **{st.session_state['user']}**\nRole: **{st.session_state['role']}**")
     
+    st.sidebar.markdown("### 📍 Navigation")
+    
+    # NAVIGATION LOGIC
     if st.session_state['role'] == "Technician":
-        nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
+        nav = st.sidebar.radio("Go to:", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
     else:
-        nav = st.sidebar.radio("Admin Control", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+        # ADMIN MENU - Ensure Manage Users is here
+        nav = st.sidebar.radio("Control Panel:", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
     
     st.sidebar.markdown("---")
-    if st.sidebar.button("🔄 Sync Data"): 
+    if st.sidebar.button("🔄 Sync Database"): 
         force_reload()
         st.success("Synced")
         time.sleep(0.5)
@@ -302,7 +285,7 @@ else:
 
     # --- TECHNICIAN ---
     if st.session_state['role'] == "Technician":
-        st.subheader(f"{nav}")
+        st.title(f"{nav}")
 
         if nav == "🚀 Issue Asset":
             c1, c2 = st.columns([2, 1])
@@ -391,7 +374,7 @@ else:
         st.title(f"{nav}")
         
         if nav == "Dashboard":
-            st.markdown("### 📈 Asset Analytics")
+            st.markdown("### 📈 System Overview")
             if not df.empty:
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total", len(df))
@@ -424,12 +407,12 @@ else:
                 st.info("No assets found.")
 
         elif nav == "Manage Users":
-            st.subheader("👥 Users")
+            st.subheader("👥 User Management")
             ws_u = get_worksheet("Users")
             if ws_u:
                 udf = pd.DataFrame(ws_u.get_all_records())
                 st.dataframe(udf, use_container_width=True)
-                with st.expander("Actions"):
+                with st.expander("➕ Add / ❌ Delete Users"):
                     c1, c2 = st.columns(2)
                     with c1:
                         with st.form("add_u"):
@@ -443,7 +426,7 @@ else:
                             st.success("Deleted"); st.rerun()
 
         elif nav == "Master Asset Control":
-            st.subheader("🛠️ Asset Control")
+            st.subheader("🛠️ Master Asset Control")
             tab1, tab2 = st.tabs(["Add Asset", "Edit/Delete"])
             
             with tab1:
@@ -469,7 +452,6 @@ else:
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
-                            # FIX 114: USE SAFE ADD LOOP
                             safe_add_rows(ws_inv, rows)
                             force_reload(); st.success(f"Added {qty} items"); st.rerun()
 
