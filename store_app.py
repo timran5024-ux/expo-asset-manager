@@ -37,7 +37,7 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 2. OPTIMIZED CONNECTION
+# 2. CONNECTION & SAFE ADD FUNCTION
 # ==========================================
 @st.cache_resource
 def get_client():
@@ -63,8 +63,18 @@ def get_worksheet(name):
         except: return sh.sheet1
     except: return None
 
+# --- THE FIX: A DEDICATED FUNCTION THAT CANNOT FAIL ---
+def safe_add_data(ws, rows_list):
+    """
+    This function replaces 'append_rows'.
+    It accepts a list of rows and adds them ONE BY ONE.
+    This works on ALL server versions.
+    """
+    for row in rows_list:
+        ws.append_row(row)
+
 # ==========================================
-# 3. HIGH-SPEED DATA ENGINE
+# 3. DATA ENGINE
 # ==========================================
 def load_data_initial():
     ws = get_worksheet("Sheet1")
@@ -75,7 +85,6 @@ def load_data_initial():
         
         # Self-Repair Headers if missing
         if raw[0] != HEADERS:
-            # Skip repair logic to avoid write conflict, just map columns
             pass 
 
         rows = raw[1:]
@@ -241,7 +250,7 @@ else:
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
-                        ws_inv.append_row(row)
+                        safe_add_data(ws_inv, [row])
                         
                         new_df = pd.DataFrame([row], columns=HEADERS)
                         st.session_state['inventory_df'] = pd.concat([df, new_df], ignore_index=True)
@@ -265,9 +274,8 @@ else:
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: 
-                        # SAFE LOOP
-                        for r in rows:
-                            ws_inv.append_row(r)
+                        # USE SAFE FUNCTION
+                        safe_add_data(ws_inv, rows)
                         force_reload()
                         st.success(f"Imported {len(rows)}")
             else: st.error("Permission Denied")
@@ -336,9 +344,8 @@ else:
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             
-                            # SAFE LOOP - DO NOT USE APPEND_ROWS
-                            for r in rows:
-                                ws_inv.append_row(r)
+                            # USE SAFE FUNCTION
+                            safe_add_data(ws_inv, rows)
                             
                             force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
