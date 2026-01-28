@@ -10,7 +10,7 @@ import base64
 from io import BytesIO
 
 # ==========================================
-# 1. STABLE EXECUTIVE UI ENGINE (V179)
+# 1. TOTAL CONTROL UI ENGINE (V180)
 # ==========================================
 st.set_page_config(
     page_title="Asset Management Pro", 
@@ -44,24 +44,23 @@ st.markdown(f"""
     {bg_css}
     header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; }}
 
+    /* EXPO BLACK BUTTONS */
+    div.stButton > button {{
+        background: #1A1A1A !important; color: #FFFFFF !important;
+        border-radius: 10px !important; height: 50px !important;
+        border: none !important; font-weight: 700 !important; width: 100%;
+    }}
+    div.stButton > button p {{ color: white !important; font-size: 16px !important; }}
+
     .exec-card {{
         background: rgba(255, 255, 255, 0.95) !important;
         border: 1px solid rgba(197, 160, 89, 0.4);
-        border-radius: 16px; padding: 25px;
-        box-shadow: 0 12px 45px rgba(0, 0, 0, 0.05); margin-bottom: 25px;
+        border-radius: 12px; padding: 20px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); margin-bottom: 20px;
         text-align: center;
     }}
-
-    .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; margin-bottom: 10px; }}
-    .hw-count {{ font-size: 15px; font-weight: 700; color: #111827; margin: 4px 0; text-align: left; }}
-    .metric-value {{ font-size: 38px; font-weight: 900; }}
-
-    div.stButton > button {{
-        background: #1A1A1A !important; color: #FFFFFF !important;
-        border-radius: 10px !important; height: 54px !important;
-        border: none !important; font-weight: 700 !important; width: 100%;
-    }}
-    div.stButton > button p {{ color: white !important; font-size: 18px !important; font-weight: 800 !important; }}
+    .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; }}
+    .hw-line {{ font-size: 14px; font-weight: 700; color: #111827; margin: 4px 0; text-align: left; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -89,11 +88,6 @@ def get_ws(name):
             return ws
         return sh.sheet1
 
-def load_data():
-    ws = get_ws("Sheet1")
-    vals = ws.get_all_values()
-    return pd.DataFrame(vals[1:], columns=vals[0]) if len(vals) > 1 else pd.DataFrame()
-
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -112,10 +106,11 @@ if not st.session_state['logged_in']:
         st.markdown('<br><br>', unsafe_allow_html=True)
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         if os.path.exists("logo.png"): st.image("logo.png", width=120)
+        st.markdown("### Sign In")
         mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
-        with st.form("login_gate"):
+        with st.form("login"):
             u = st.text_input("Username") if mode == "Technician" else "Administrator"
-            p = st.text_input("PIN / Password", type="password")
+            p = st.text_input("Password", type="password")
             if st.form_submit_button("SIGN IN"):
                 if mode == "Admin" and p == ADMIN_PASSWORD:
                     st.session_state.update(logged_in=True, user="Administrator", role="Admin")
@@ -126,19 +121,20 @@ if not st.session_state['logged_in']:
                     if any(str(r['Username']).strip()==u.strip() and str(r['PIN']).strip()==p.strip() for r in recs):
                         st.session_state.update(logged_in=True, user=u, role="Technician")
                         st.rerun()
-                    else: st.error("Access Refused: Check Credentials")
+                    else: st.error("Invalid Credentials")
         st.markdown('</div>', unsafe_allow_html=True)
 else:
-    df = load_data()
+    ws_inv = get_ws("Sheet1")
+    df = pd.DataFrame(ws_inv.get_all_records())
     
     with st.sidebar:
-        if os.path.exists("logo.png"): st.image("logo.png", width=140)
+        if os.path.exists("logo.png"): st.image("logo.png", width=130)
         st.markdown(f"**USER: {st.session_state['user']}**")
         st.divider()
         menu = ["DASHBOARD", "ASSET CONTROL", "DATABASE", "USER MANAGER"] if st.session_state['role'] == "Admin" else ["DASHBOARD", "ISSUE ASSET", "REGISTER ASSET"]
-        nav = st.radio("System Menu", menu)
+        nav = st.radio("Navigation", menu)
         st.markdown("<br>" * 8, unsafe_allow_html=True)
-        if st.button("Logout System"): st.session_state.clear(); st.rerun()
+        if st.button("Logout"): st.session_state.clear(); st.rerun()
 
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
 
@@ -148,41 +144,36 @@ else:
         c_rdr = len(df[types.str.contains('READER', na=False)])
         c_pnl = len(df[types.str.contains('PANEL', na=False)])
         c_lck = len(df[types.str.contains('LOCK|MAG', na=False)])
-        used = len(df[df['CONDITION'] == 'Available/Used'])
         faulty = len(df[df['CONDITION'] == 'Faulty'])
 
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(f"""<div class="exec-card">
-                <p class="metric-title">Security Inventory</p>
-                <p class="hw-count">📹 Cameras: {c_cam}</p>
-                <p class="hw-count">💳 Readers: {c_rdr}</p>
-                <p class="hw-count">🖥️ Panels: {c_pnl}</p>
-                <p class="hw-count">🧲 Mag Locks: {c_lck}</p>
+                <p class="metric-title">Security Summary</p>
+                <p class="hw-line">📹 Cameras: {c_cam}</p>
+                <p class="hw-line">💳 Readers: {c_rdr}</p>
+                <p class="hw-line">🖥️ Panels: {c_pnl}</p>
+                <p class="hw-line">🧲 Mag Locks: {c_lck}</p>
             </div>""", unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p style="font-size:32px; font-weight:900; color:#FFD700;">{len(df[df["CONDITION"]=="Available/Used"])}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p style="font-size:32px; font-weight:900; color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
 
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
         clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
         fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
-        fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(showlegend=True, height=400, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        col_s, col_dl = st.columns([4, 1])
-        with col_s: q = st.text_input("🔍 Search Full Inventory")
-        with col_dl: 
+        col1, col2 = st.columns([4, 1])
+        with col1: q = st.text_input("🔍 Global Search")
+        with col2: 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button("📥 EXCEL", to_excel(df), "Full_Inventory.xlsx", use_container_width=True)
-        
-        if not df.empty:
-            f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
-            st.dataframe(f_df, use_container_width=True)
-        else:
-            st.warning("No data found in the database.")
+            st.download_button("📥 EXCEL", to_excel(df), "Full_Inventory.xlsx")
+        f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
+        st.dataframe(f_df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "USER MANAGER":
@@ -195,13 +186,20 @@ else:
         c1, c2 = st.columns(2)
         with c1:
             with st.form("add_u"):
+                st.write("**New Technician**")
                 un, up = st.text_input("Name"), st.text_input("PIN")
                 if st.form_submit_button("CREATE"):
                     ws_u.append_row([un, up, "Standard"])
                     st.success("User Added"); time.sleep(1); st.rerun()
         with c2:
             if not udf.empty:
-                target = st.selectbox("Remove User", udf['Username'].tolist())
+                st.write("**Permission Control**")
+                target = st.selectbox("Select User", udf['Username'].tolist())
+                new_p = st.selectbox("Assign Level", ["Standard", "Bulk_Allowed"])
+                if st.button("UPDATE PERMISSION"):
+                    cell = ws_u.find(target)
+                    ws_u.update_cell(cell.row, 3, new_p)
+                    st.success("Permissions Updated Successfully")
                 if st.button("REVOKE ACCESS"):
                     ws_u.delete_rows(ws_u.find(target).row)
                     st.success("Removed"); time.sleep(1); st.rerun()
