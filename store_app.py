@@ -63,6 +63,7 @@ st.markdown(f"""
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+LOGO_URL = "https://gcdn.net/wp-content/uploads/2024/11/EXPO_CITY_DUBAI_LOGO_DUAL_HORIZONTAL_YELLOW-1024x576.png"
 # ==========================================
 # 2. CORE UTILITIES
 # ==========================================
@@ -98,7 +99,7 @@ if not st.session_state['logged_in']:
     with mid:
         st.markdown('<br><br>', unsafe_allow_html=True)
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        if os.path.exists("logo.png"): st.image("logo.png", width=120)
+        st.image(LOGO_URL, width=120)
         mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
         with st.form("login"):
             u = st.text_input("Username") if mode == "Technician" else "Administrator"
@@ -118,7 +119,7 @@ if not st.session_state['logged_in']:
 else:
     # --- GUARANTEED SIDEBAR ---
     with st.sidebar:
-        if os.path.exists("logo.png"): st.image("logo.png", width=130)
+        st.image(LOGO_URL, width=130)
         st.markdown(f"**USER: {st.session_state['user']}**")
         st.divider()
         if st.session_state['role'] == "Admin":
