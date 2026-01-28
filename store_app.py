@@ -10,61 +10,78 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & SMART THEME CSS
+# 1. CONFIGURATION & MODERN UI
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* 1. HIDE DEFAULT UI ELEMENTS */
-    header, footer, #MainMenu, .stAppDeployButton {visibility: hidden !important; display: none !important;}
-    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {display: none !important;}
+    /* 1. HIDE JUNK, BUT KEEP SIDEBAR TOGGLE VISIBLE */
+    .stAppDeployButton {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    footer {visibility: hidden !important;}
+    #MainMenu {visibility: visible !important;} /* Keep menu accessible */
     
-    /* 2. SMART FORM STYLING (Dark/Light Mode Compatible) */
+    /* 2. MODERN DASHBOARD CARDS (Glassmorphism) */
+    div[data-testid="metric-container"] {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+        padding: 15px;
+        color: var(--text-color);
+        transition: transform 0.2s;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    /* 3. CHART CARDS ZOOM EFFECT */
+    div[data-testid="column"] {
+        transition: all 0.3s ease;
+        border-radius: 12px;
+        padding: 10px;
+    }
+    div[data-testid="column"]:hover {
+        transform: scale(1.03);
+        z-index: 10;
+        background-color: var(--secondary-background-color);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+
+    /* 4. SIDEBAR VISIBILITY FIX */
+    section[data-testid="stSidebar"] .stRadio label {
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        padding: 10px 5px;
+        border-radius: 5px;
+    }
+
+    /* 5. FORM STYLING */
     div[data-testid="stForm"] {
         background-color: var(--secondary-background-color);
         padding: 25px; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-        border-top: 3px solid #cfaa5e;
+        border-radius: 15px; 
+        border-left: 5px solid #cfaa5e;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     
-    /* 3. DASHBOARD CARD STYLING */
-    div[data-testid="column"] {
-        background-color: var(--secondary-background-color);
-        border-radius: 10px;
-        padding: 15px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0.2s;
-    }
-    
-    /* ZOOM EFFECT ON HOVER */
-    div[data-testid="column"]:hover {
-        transform: scale(1.05);
-        z-index: 10;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        border-color: #cfaa5e;
-    }
-
-    /* 4. SIDEBAR STYLING */
-    section[data-testid="stSidebar"] {
-        border-right: 1px solid rgba(128, 128, 128, 0.2);
-    }
-
-    /* 5. METRIC CARD STYLE */
-    div[data-testid="metric-container"] {
-        background-color: var(--secondary-background-color);
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-    }
-    
-    /* 6. BUTTONS */
+    /* 6. GLOBAL BUTTONS */
     .stButton>button {
-        width: 100%; 
-        border-radius: 6px; 
+        width: 100%;
+        border-radius: 8px;
+        height: 45px;
         font-weight: 600;
         border: none;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        filter: brightness(110%);
+        transform: translateY(-2px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -195,17 +212,19 @@ if 'logged_in' not in st.session_state:
 # 5. LOGIN SCREEN
 # ==========================================
 def login_screen():
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown("<h1 style='text-align: center;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
-        t1, t2 = st.tabs(["Technician", "Admin"])
+        st.markdown("<h1 style='text-align: center; color: #cfaa5e;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; opacity: 0.7;'>Professional Inventory System</p>", unsafe_allow_html=True)
+        
+        t1, t2 = st.tabs(["Technician Login", "Admin Login"])
         
         with t1:
             with st.form("tech"):
                 u = st.text_input("Username")
                 p = st.text_input("PIN", type="password")
-                if st.form_submit_button("Login"):
+                if st.form_submit_button("Access Dashboard"):
                     ws_u = get_worksheet("Users")
                     if ws_u:
                         users = ws_u.get_all_records()
@@ -222,7 +241,7 @@ def login_screen():
         with t2:
             with st.form("admin"):
                 p = st.text_input("Password", type="password")
-                if st.form_submit_button("Login"):
+                if st.form_submit_button("Access Admin Panel"):
                     if p == ADMIN_PASSWORD:
                         set_login_session("Administrator", "Admin", True)
                         st.rerun()
@@ -238,36 +257,33 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- GLOBAL SIDEBAR ---
-    st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
+    # --- SIDEBAR (FIXED) ---
+    st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
     st.sidebar.markdown("---")
     
-    # NAVIGATION LOGIC
     if st.session_state['role'] == "Technician":
-        nav = st.sidebar.radio("Menu", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
+        nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
     else:
-        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
+        nav = st.sidebar.radio("Admin Control", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
     
     st.sidebar.markdown("---")
-    if st.sidebar.button("🔄 Refresh Data"): 
+    c1, c2 = st.sidebar.columns(2)
+    if c1.button("🔄 Sync"): 
         force_reload()
-        st.success("Synced!")
+        st.success("OK")
         time.sleep(0.5)
         st.rerun()
-        
-    if st.sidebar.button("🚪 Logout"): 
+    if c2.button("🚪 Logout"): 
         clear_login_session()
         st.rerun()
 
-    # ==========================================
-    # TECHNICIAN DASHBOARD
-    # ==========================================
+    # --- TECHNICIAN ---
     if st.session_state['role'] == "Technician":
-        st.title(f"{nav}")
+        st.subheader(f"{nav}")
 
         if nav == "🚀 Issue Asset":
             c1, c2 = st.columns([2, 1])
-            with c1: search = st.text_input("Enter Serial")
+            with c1: search = st.text_input("Enter Serial Number")
             with c2:
                 if CAMERA_AVAILABLE:
                     cam = st.camera_input("Scan QR")
@@ -358,35 +374,42 @@ else:
         elif nav == "🎒 My Inventory":
             st.dataframe(df[(df['ISSUED TO'] == st.session_state['user']) & (df['CONDITION'] == 'Issued')])
 
-    # ==========================================
-    # ADMIN DASHBOARD
-    # ==========================================
+    # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
         st.title(f"{nav}")
         
         if nav == "Dashboard":
+            # 1. TOP STATS ROW
             if not df.empty:
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("📦 Total Assets", len(df))
+                c2.metric("🟢 Available", len(df[df['CONDITION'].str.contains('Available', na=False)]))
+                c3.metric("🔵 Issued", len(df[df['CONDITION'] == 'Issued']))
+                c4.metric("🔴 Faulty", len(df[df['CONDITION'] == 'Faulty']))
+                st.markdown("---")
+
+                # 2. MAIN LAYOUT
                 color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
-                
-                # --- LAYOUT: 2 Columns (Left: Stats List, Right: Charts Grid) ---
-                col_left, col_right = st.columns([1, 4])
-                
                 valid_models = sorted([m for m in df['MODEL'].unique() if str(m).strip() != ""])
                 
+                col_left, col_right = st.columns([1.5, 3.5])
+                
                 with col_left:
-                    st.markdown("### 📋 Asset List")
-                    for m in valid_models:
-                        sub = df[df['MODEL'] == m]
-                        total = len(sub)
-                        faulty = len(sub[sub['CONDITION'] == 'Faulty'])
-                        # Color code stats
-                        stat_color = "red" if faulty > 0 else "green"
-                        st.markdown(f"**{m}**")
-                        st.markdown(f"Total: {total} | <span style='color:{stat_color}'>Faulty: {faulty}</span>", unsafe_allow_html=True)
-                        st.divider()
+                    st.markdown("##### 📋 Asset List")
+                    # Make a scrollable container for list
+                    with st.container(height=500):
+                        for m in valid_models:
+                            sub = df[df['MODEL'] == m]
+                            total = len(sub)
+                            faulty = len(sub[sub['CONDITION'] == 'Faulty'])
+                            s_color = "red" if faulty > 0 else "green"
+                            st.caption(f"**{m}**")
+                            st.markdown(f"Total: {total} | <span style='color:{s_color}'>Faulty: {faulty}</span>", unsafe_allow_html=True)
+                            st.divider()
 
                 with col_right:
-                    st.markdown("### 📈 Visual Overview")
+                    st.markdown("##### 📈 Visual Overview")
+                    # Grid Layout
                     cols_per_row = 3
                     rows_needed = (len(valid_models) + cols_per_row - 1) // cols_per_row
                     
@@ -400,14 +423,13 @@ else:
                                 atype = sub['ASSET TYPE'].iloc[0] if not sub.empty else ""
                                 
                                 with cols[col_idx]:
-                                    # CARD CHART
-                                    title_html = f"<b>{m_name}</b><br><span style='font-size:11px; opacity:0.7'>{atype}</span>"
+                                    title_html = f"<b>{m_name}</b><br><span style='font-size:10px; opacity:0.6'>{atype}</span>"
                                     fig = px.pie(sub, names='CONDITION', title=title_html,
                                                  color='CONDITION', color_discrete_map=color_map, hole=0.6)
-                                    fig.update_layout(showlegend=False, margin=dict(t=40, b=10, l=10, r=10), height=180)
+                                    fig.update_layout(showlegend=False, margin=dict(t=35, b=5, l=5, r=5), height=150)
                                     st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No assets found.")
+                st.info("System is empty. Go to 'Master Asset Control' to add assets.")
 
         elif nav == "Manage Users":
             st.subheader("👥 Users")
