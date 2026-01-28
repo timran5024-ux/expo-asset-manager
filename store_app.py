@@ -53,6 +53,9 @@ st.markdown(f"""
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); margin-bottom: 20px;
         text-align: center;
     }}
+    .metric-title {{ font-size: 13px; font-weight: 700; color: #6B7280; text-transform: uppercase; margin-bottom: 10px; }}
+    .hw-count {{ font-size: 15px; font-weight: 700; color: #111827; margin: 4px 0; text-align: left; }}
+    .metric-value {{ font-size: 38px; font-weight: 900; }}
 </style>
 """, unsafe_allow_html=True)
 # CONSTANTS
@@ -70,7 +73,12 @@ def get_client():
 def get_ws(name):
     sh = get_client().open_by_key(SHEET_ID)
     try: return sh.worksheet(name)
-    except: return sh.sheet1
+    except:
+        if name == "Users":
+            ws = sh.add_worksheet(title="Users", rows="100", cols="5")
+            ws.append_row(["Username", "PIN", "Permission"])
+            return ws
+        return sh.sheet1
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
@@ -89,7 +97,7 @@ if not st.session_state['logged_in']:
         mode = st.radio("GATEWAY", ["Technician", "Admin"], horizontal=True)
         with st.form("login"):
             u = st.text_input("Username") if mode == "Technician" else "Administrator"
-            p = st.text_input("Password", type="password")
+            p = st.text_input("PIN / Password", type="password")
             if st.form_submit_button("SIGN IN"):
                 if mode == "Admin" and p == ADMIN_PASSWORD:
                     st.session_state.update(logged_in=True, user="Administrator", role="Admin")
@@ -116,9 +124,31 @@ else:
    
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
     if nav == "DASHBOARD":
-        # Security hardware parsing logic...
+        types = df['ASSET TYPE'].str.upper() if not df.empty else pd.Series()
+        c_cam = len(df[types.str.contains('CAMERA', na=False)])
+        c_rdr = len(df[types.str.contains('READER', na=False)])
+        c_pnl = len(df[types.str.contains('PANEL', na=False)])
+        c_lck = len(df[types.str.contains('LOCK|MAG', na=False)])
+       
+        used = len(df[df['CONDITION'] == 'Available/Used'])
+        faulty = len(df[df['CONDITION'] == 'Faulty'])
         m1, m2, m3 = st.columns(3)
-        # Dashboard content here...
+        with m1:
+            st.markdown(f"""<div class="exec-card">
+                <p class="metric-title">Security Summary</p>
+                <p class="hw-count">📹 Cameras: {c_cam}</p>
+                <p class="hw-count">💳 Card Readers: {c_rdr}</p>
+                <p class="hw-count">🖥️ Access Panels: {c_pnl}</p>
+                <p class="hw-count">🧲 Mag Locks: {c_lck}</p>
+            </div>""", unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="exec-card"><p class="metric-title">Available Used</p><p class="metric-value" style="color:#FFD700;">{used}</p></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Faulty Assets</p><p class="metric-value" style="color:#DC3545;">{faulty}</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        clr_map = {"Available/New": "#28A745", "Available/Used": "#FFD700", "Faulty": "#DC3545", "Issued": "#6C757D"}
+        fig = px.pie(df, names='CONDITION', hole=0.7, color='CONDITION', color_discrete_map=clr_map)
+        fig.update_layout(showlegend=True, height=450, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     # --- ASSET CONTROL (FIXED) ---
     elif nav == "ASSET CONTROL":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
@@ -136,6 +166,42 @@ else:
                 if st.form_submit_button("REGISTER ASSET"):
                     ws_inv.append_row([at, br, md, sn, mc, st_v, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
                     st.success("Asset Registered!"); time.sleep(1); st.rerun()
+        with tabs[1]:
+            sn_search = st.text_input("Enter Serial Number to Modify")
+            if sn_search:
+                cell = ws_inv.find(sn_search)
+                if cell:
+                    row_num = cell.row
+                    data = ws_inv.row_values(row_num)
+                    with st.form("modify_asset"):
+                        c1, c2, c3 = st.columns(3)
+                        at = c1.text_input("Asset Type", value=data[0])
+                        br = c2.text_input("Brand", value=data[1])
+                        md = c3.text_input("Model", value=data[2])
+                        sn = c1.text_input("Serial Number (SN)", value=data[3])
+                        mc = c2.text_input("MAC Address", value=data[4])
+                        st_v = c3.selectbox("Status", ["Available/New", "Available/Used", "Faulty", "Issued"], index=["Available/New", "Available/Used", "Faulty", "Issued"].index(data[5]) if data[5] in ["Available/New", "Available/Used", "Faulty", "Issued"] else 0)
+                        lo = c1.selectbox("Location", ["MOBILITY STORE-10", "BASEMENT", "TERRA"], index=["MOBILITY STORE-10", "BASEMENT", "TERRA"].index(data[6]) if data[6] in ["MOBILITY STORE-10", "BASEMENT", "TERRA"] else 0)
+                        issued_to = c2.text_input("Issued To", value=data[7])
+                        issued_date = c3.date_input("Issued Date", value=datetime.strptime(data[8], "%Y-%m-%d") if data[8] else datetime.now())
+                        if st.form_submit_button("UPDATE ASSET"):
+                            ws_inv.update(f'A{row_num}:K{row_num}', [[at, br, md, sn, mc, st_v, lo, issued_to, issued_date.strftime("%Y-%m-%d"), data[9], st.session_state['user']]])
+                            st.success("Asset Updated!"); time.sleep(1); st.rerun()
+                else:
+                    st.error("Serial Number not found.")
+        with tabs[2]:
+            sn_del = st.text_input("Enter Serial Number to Delete")
+            if st.button("DELETE ASSET"):
+                cell = ws_inv.find(sn_del)
+                if cell:
+                    ws_inv.delete_rows(cell.row)
+                    st.success("Asset Deleted!"); time.sleep(1); st.rerun()
+                else:
+                    st.error("Serial Number not found.")
+        st.markdown('</div>', unsafe_allow_html=True)
+    elif nav == "DATABASE":
+        st.markdown('<div class="exec-card">', unsafe_allow_html=True)
+        st.dataframe(df, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     # --- USER MANAGER (PARALLEL BUTTONS) ---
     elif nav == "USER MANAGER":
