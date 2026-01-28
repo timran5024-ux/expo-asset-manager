@@ -92,22 +92,21 @@ def get_ws(name):
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
-    # Updated to match your EXACT Google Sheet headers
+    # Your EXACT Sheet Headers
     expected_columns = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET"]
     
     if len(vals) > 0:
+        # Normalize headers: Upper case and Strip whitespace
         headers = [str(h).strip().upper() for h in vals[0]]
         df = pd.DataFrame(vals[1:], columns=headers)
         
-        # Fill missing columns if any
+        # Ensure the ASSET TYPE column is accessible even if empty
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = ''
         
-        # Clean Serial for searching
-        if "SERIAL" in df.columns:
-            df['SERIAL'] = df['SERIAL'].astype(str).str.strip()
-        return df
+        # Strip all data values to prevent matching errors
+        return df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
     else:
         return pd.DataFrame(columns=expected_columns)
 
@@ -158,19 +157,22 @@ else:
    
     st.markdown(f"<h2>{nav}</h2>", unsafe_allow_html=True)
     if nav == "DASHBOARD":
-        if df.empty:
-            st.info("No assets registered yet.")
+        if df.empty or 'ASSET TYPE' not in df.columns:
+            st.info("No assets registered or column 'ASSET TYPE' missing.")
         else:
-            types = df['ASSET TYPE'].str.upper()
+            # FIX: Use exact column name from normalized load
+            types = df['ASSET TYPE'].fillna('').astype(str).str.upper()
             c_cam = len(df[types.str.contains('CAMERA', na=False)])
             c_rdr = len(df[types.str.contains('READER', na=False)])
             c_pnl = len(df[types.str.contains('PANEL', na=False)])
             c_lck = len(df[types.str.contains('LOCK|MAG', na=False)])
+            
             total_assets = len(df)
-            new = len(df[df['CONDITION'] == 'Available/New'])
-            used = len(df[df['CONDITION'] == 'Available/Used'])
-            faulty = len(df[df['CONDITION'] == 'Faulty'])
-            issued = len(df[df['CONDITION'] == 'Issued'])
+            cond = df['CONDITION'].fillna('').astype(str)
+            new = len(df[cond == 'Available/New'])
+            used = len(df[cond == 'Available/Used'])
+            faulty = len(df[cond == 'Faulty'])
+            issued = len(df[cond == 'Issued'])
             
             m1, m2, m3, m4, m5 = st.columns(5)
             with m1: st.markdown(f'<div class="exec-card"><p class="metric-title">Total Assets</p><p class="metric-value" style="color:#1F2937;">{total_assets}</p></div>', unsafe_allow_html=True)
@@ -195,12 +197,6 @@ else:
                 fig_pie.update_layout(title="Asset Status Distribution", showlegend=True, height=400, margin=dict(t=40,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_pie, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-            fig_bar = px.bar(df.groupby('ASSET TYPE').size().reset_index(name='Count'), x='ASSET TYPE', y='Count', title="Assets by Type")
-            fig_bar.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_bar, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
         if st.session_state['role'] != "Admin" and nav == "ASSET CONTROL": st.error("Access Denied"); st.stop()
@@ -222,7 +218,6 @@ else:
                     lo = c3.selectbox("LOCATION", ["MOBILITY STORE-10", "BASEMENT", "TERRA"])
                     st_v = st.selectbox("CONDITION", ["Available/New", "Available/Used", "Faulty"])
                     if st.form_submit_button("REGISTER ASSET"):
-                        # Appending row based on your EXACT Google Sheet headers
                         ws_inv.append_row([at, br, md, str(sn).strip(), mc, st_v, lo, "", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                         st.success("Asset Registered!"); time.sleep(1); st.rerun()
 
@@ -230,7 +225,7 @@ else:
             with tabs[1]:
                 sn_search = st.text_input("Enter SERIAL to Modify").strip()
                 if sn_search:
-                    matching_rows = df[df['SERIAL'].str.upper() == sn_search.upper()]
+                    matching_rows = df[df['SERIAL'].astype(str).str.upper() == sn_search.upper()]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         data = df.iloc[row_idx]
@@ -257,7 +252,7 @@ else:
                 sn_issue = st.text_input("Enter SERIAL to Issue", key="admin_sn_issue").strip()
                 issued_to = st.text_input("ISSUED TO", key="admin_issued_to")
                 if st.button("ISSUE ASSET", key="admin_issue_btn"):
-                    matching_rows = df[(df['SERIAL'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+                    matching_rows = df[(df['SERIAL'].astype(str).str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
@@ -266,24 +261,11 @@ else:
                         st.success("Asset Issued!"); time.sleep(1); st.rerun()
                     else: st.error("Asset not found or not available.")
 
-            with tabs[3]:
-                sn_return = st.text_input("Enter SERIAL to Return").strip()
-                return_status = st.selectbox("Return CONDITION", ["Available/Used", "Faulty"])
-                if st.button("RETURN ASSET"):
-                    matching_rows = df[(df['SERIAL'].str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
-                    if not matching_rows.empty:
-                        row_idx = matching_rows.index[0]
-                        row_num = row_idx + 2
-                        ws_inv.update_cell(row_num, 6, return_status)
-                        ws_inv.update_cell(row_num, 8, "")
-                        st.success("Asset Returned!"); time.sleep(1); st.rerun()
-                    else: st.error("Asset not found or not issued.")
-
             with tabs[4]:
                 sn_del = st.text_input("Enter SERIAL to Delete").strip()
                 if st.button("DELETE ASSET"):
                     if sn_del:
-                        match_logic = df['SERIAL'].str.upper() == sn_del.upper()
+                        match_logic = df['SERIAL'].astype(str).str.upper() == sn_del.upper()
                         matching_rows = df[match_logic]
                         if not matching_rows.empty:
                             row_idx = matching_rows.index[0]
@@ -298,7 +280,7 @@ else:
         sn_issue = st.text_input("Enter SERIAL to Issue").strip()
         issued_to = st.text_input("ISSUED TO")
         if st.button("ISSUE ASSET"):
-            matching_rows = df[(df['SERIAL'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+            matching_rows = df[(df['SERIAL'].astype(str).str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
             if not matching_rows.empty:
                 row_idx = matching_rows.index[0]
                 row_num = row_idx + 2
