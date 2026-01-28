@@ -35,13 +35,12 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display: none !important;}
     
     /* --- 3. UNIFORM INPUT BOX STYLING --- */
-    /* This targets Text Inputs, Select Boxes, and Number Inputs */
     .stTextInput input, .stSelectbox div[data-baseweb="select"], .stNumberInput input {
-        background-color: #f8f9fa !important; /* Very light grey for contrast against white */
+        background-color: #f8f9fa !important;
         border: 1px solid #e0e0e0 !important;
         border-radius: 8px !important;
         color: #333333 !important;
-        height: 45px !important; /* Uniform height */
+        height: 45px !important;
     }
     
     /* Fix Selectbox internal text alignment */
@@ -50,16 +49,14 @@ st.markdown("""
     }
 
     /* --- 4. CARD & FORM STYLING --- */
-    /* The white containers for forms */
     div[data-testid="stForm"] {
         background-color: #ffffff !important;
         border: 1px solid #e0e0e0 !important;
         border-radius: 12px !important;
         padding: 30px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.03) !important; /* Soft shadow */
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03) !important;
     }
     
-    /* Top Menu Styling */
     div[data-testid="stSelectbox"] {
         margin-top: 0px !important;
     }
@@ -100,7 +97,7 @@ st.markdown("""
         border: 1px solid #eee;
         padding: 20px;
         border-radius: 10px;
-        border-left: 4px solid #cfaa5e; /* Gold Accent */
+        border-left: 4px solid #cfaa5e; 
         box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     }
 </style>
@@ -283,7 +280,6 @@ else:
     ws_inv = get_worksheet("Sheet1")
 
     # --- TOP NAVIGATION BAR ---
-    # Styled like a professional header
     c_nav, c_user, c_act = st.columns([4, 2, 1])
     
     with c_nav:
@@ -435,7 +431,8 @@ else:
                                     st.markdown(f"**{m_name}**")
                                     fig = px.pie(sub, names='CONDITION', color='CONDITION', color_discrete_map=color_map, hole=0.6)
                                     fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=150)
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    # --- FIXED KEY HERE ---
+                                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{idx}")
             else:
                 st.info("Database is empty.")
 
@@ -460,7 +457,7 @@ else:
                 with c2:
                     st.markdown("**Delete User**")
                     target = st.selectbox("Select User to Delete", udf['Username'].tolist() if not udf.empty else [])
-                    if st.button("DELETE USER PERMANENTLY"):
+                    if st.button("DELETE USER PERMANENTLY", key="del_user_btn"):
                         cell = ws_u.find(target)
                         ws_u.delete_rows(cell.row)
                         st.success("User Deleted")
@@ -517,7 +514,7 @@ else:
                                     force_reload(); st.success("Updated"); st.rerun()
                         with c2:
                             st.markdown("**Danger Zone**")
-                            if st.button("DELETE ASSET PERMANENTLY"):
+                            if st.button("DELETE ASSET PERMANENTLY", key="del_asset_btn"):
                                 ws_inv.delete_rows(sheet_row)
                                 force_reload(); st.success("Deleted"); st.rerun()
 
