@@ -75,12 +75,9 @@ def load_data_initial():
         
         # Self-Repair Headers if missing
         if raw[0] != HEADERS:
-            # We assume the first row is corrupted or mismatched, so we ignore it
-            # and map columns strictly by index order
             pass 
 
         rows = raw[1:]
-        # Pad rows to avoid errors
         clean_rows = []
         for r in rows:
             while len(r) < len(HEADERS): r.append("")
@@ -90,7 +87,6 @@ def load_data_initial():
     except: return pd.DataFrame(columns=HEADERS)
 
 def sync_local_state():
-    # Only download if we don't have data
     if 'inventory_df' not in st.session_state or st.session_state['inventory_df'] is None:
         with st.spinner("Downloading Database..."):
             st.session_state['inventory_df'] = load_data_initial()
@@ -157,12 +153,10 @@ def login_screen():
 if not st.session_state['logged_in']:
     login_screen()
 else:
-    # --- LOAD DATA ONCE ---
     sync_local_state()
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- SIDEBAR ---
     st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
     if st.sidebar.button("🔄 Refresh Data"): force_reload(); st.success("Refreshed!"); time.sleep(0.5); st.rerun()
     if st.sidebar.button("🚪 Logout"): st.session_state['logged_in'] = False; st.rerun()
@@ -187,20 +181,18 @@ else:
                 match = df[df['SERIAL'].astype(str).str.strip().str.upper() == search.strip().upper()]
                 if not match.empty:
                     item = match.iloc[0]
-                    idx = match.index[0] # DataFrame Index
+                    idx = match.index[0] 
                     st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
                     
                     if "Available" in str(item['CONDITION']):
                         with st.form("issue"):
                             tkt = st.text_input("Ticket #")
                             if st.form_submit_button("Confirm Issue"):
-                                # 1. Update Cloud
                                 sheet_row = idx + 2
                                 ws_inv.update_cell(sheet_row, 6, "Issued")
                                 ws_inv.update_cell(sheet_row, 8, st.session_state['user'])
                                 ws_inv.update_cell(sheet_row, 9, tkt)
                                 
-                                # 2. Update Local (Instant)
                                 df.at[idx, 'CONDITION'] = "Issued"
                                 df.at[idx, 'ISSUED TO'] = st.session_state['user']
                                 df.at[idx, 'TICKET'] = tkt
@@ -224,13 +216,10 @@ else:
                     if st.form_submit_button("Return"):
                         idx = df[df['SERIAL']==sel].index[0]
                         sheet_row = idx + 2
-                        
-                        # 1. Cloud
                         ws_inv.update_cell(sheet_row, 6, stat)
                         ws_inv.update_cell(sheet_row, 7, loc)
                         ws_inv.update_cell(sheet_row, 8, "")
                         
-                        # 2. Local
                         df.at[idx, 'CONDITION'] = stat
                         df.at[idx, 'LOCATION'] = loc
                         df.at[idx, 'ISSUED TO'] = ""
@@ -250,14 +239,11 @@ else:
                 
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
-                        # Cloud
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
                         ws_inv.append_row(row)
                         
-                        # Local (Append to DataFrame)
                         new_df = pd.DataFrame([row], columns=HEADERS)
                         st.session_state['inventory_df'] = pd.concat([df, new_df], ignore_index=True)
-                        
                         st.success("Saved!"); time.sleep(0.5); st.rerun()
                     else: st.error("Duplicate Serial")
 
@@ -278,10 +264,10 @@ else:
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: 
-                        # FIX 100: Use Loop instead of append_rows for compatibility
+                        # UNIVERSAL COMPATIBILITY FIX: Loop instead of append_rows
                         for r in rows:
                             ws_inv.append_row(r)
-                        force_reload() # Full reload required for bulk
+                        force_reload()
                         st.success(f"Imported {len(rows)}")
             else: st.error("Permission Denied")
 
@@ -349,7 +335,7 @@ else:
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             
-                            # FIX 100: Use Loop to avoid Version Error
+                            # UNIVERSAL COMPATIBILITY FIX: Loop instead of append_rows
                             for r in rows:
                                 ws_inv.append_row(r)
                                 
@@ -377,7 +363,6 @@ else:
                                 ws_inv.delete_rows(idx); force_reload(); st.success("Deleted"); st.rerun()
 
         elif nav == "Database":
-            # Top-Right Export
             c1, c2 = st.columns([6, 1])
             c1.write("")
             c2.download_button("📥 Export", to_excel(df), "data.xlsx")
