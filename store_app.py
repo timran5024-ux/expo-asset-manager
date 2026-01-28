@@ -6,78 +6,106 @@ from datetime import datetime
 import time
 import plotly.express as px
 import hashlib
+import os
+import base64
 
 # ==========================================
-# 1. ULTIMATE PROFESSIONAL UI ENGINE (CSS)
+# 1. WATERMARK & PREMIUM CSS ENGINE
 # ==========================================
 st.set_page_config(page_title="Asset Management Pro", layout="wide", initial_sidebar_state="collapsed")
 
-st.markdown("""
+def get_base64_bin(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Check if logo exists to create watermark
+watermark_css = ""
+if os.path.exists("logo.png"):
+    try:
+        bin_str = get_base64_bin("logo.png")
+        watermark_css = f"""
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+            background-size: 50%; /* Large Watermark */
+            opacity: 1;
+        }}
+        /* This creates the faded effect for the background only */
+        .stApp::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.92); /* Adjust this to make watermark lighter/darker */
+            z-index: -1;
+        }}
+        """
+    except: pass
+
+st.markdown(f"""
 <style>
-    /* GLOBAL CLEAN WHITE THEME */
-    .stApp { background-color: #FFFFFF !important; }
-    header, footer, .stAppDeployButton, #MainMenu { visibility: hidden !important; height: 0 !important; }
+    {watermark_css}
     
-    /* REMOVE ALL PADDING & GAPS AT TOP */
-    .main .block-container { 
+    /* GLOBAL CLEANING */
+    header, footer, .stAppDeployButton, #MainMenu {{ visibility: hidden !important; height: 0 !important; }}
+    
+    .main .block-container {{ 
         padding-top: 0.5rem !important; 
         max-width: 98% !important; 
         margin-top: -30px !important;
-    }
+    }}
 
-    /* CENTERED TITLE STYLING */
-    .centered-title {
+    /* CENTERED TITLE */
+    .centered-title {{
         text-align: center;
         color: #2C3E50;
         font-size: 32px;
         font-weight: 800;
         letter-spacing: 1px;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
         text-transform: uppercase;
-    }
+    }}
 
-    /* INPUT BOXES: PURE WHITE & LIGHT GREY BORDER */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stNumberInput input {
+    /* INPUT BOXES: WHITE & GREY BORDER */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stNumberInput input {{
         background-color: #FFFFFF !important;
         border: 1px solid #E0E0E0 !important;
         border-radius: 8px !important;
         height: 42px !important;
-    }
+    }}
 
-    /* BLUE REFRESH BUTTON - BOLD WHITE TEXT */
-    button[key="final_refresh_btn"] {
+    /* BLUE REFRESH BUTTON */
+    button[key="final_refresh_btn"] {{
         background-color: #007BFF !important;
         color: white !important;
         font-weight: 800 !important;
         border: none !important;
         text-transform: uppercase;
-        border-radius: 6px !important;
-    }
+    }}
 
-    /* RED LOGOUT BUTTON - BOLD WHITE TEXT */
-    button[key="final_logout_btn"] {
+    /* RED LOGOUT BUTTON */
+    button[key="final_logout_btn"] {{
         background-color: #FF4B4B !important;
         color: white !important;
         font-weight: 800 !important;
         border: none !important;
         text-transform: uppercase;
-        border-radius: 6px !important;
-    }
+    }}
 
-    /* DARK GREY FORM SUBMIT BUTTONS */
-    button[kind="secondaryFormSubmit"] {
+    /* FORM SUBMIT BUTTONS (DARK GREY) */
+    button[kind="secondaryFormSubmit"] {{
         background-color: #444444 !important;
         color: white !important;
         font-weight: 800 !important;
-        width: 100% !important;
         height: 45px !important;
-        text-transform: uppercase;
-    }
+    }}
 
     /* PROFILE BADGE */
-    .profile-box {
+    .profile-box {{
         padding: 5px 15px;
-        background-color: #F8F9FA;
+        background-color: rgba(248, 249, 250, 0.8);
         border: 1px solid #EAEAEA;
         border-radius: 8px;
         font-weight: 700;
@@ -87,23 +115,23 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
-    }
+    }}
 
-    /* CHART CARD DESIGN */
-    div[data-testid="column"] {
-        background-color: #FFFFFF;
-        border: 1px solid #F0F0F0;
-        border-radius: 12px;
-        padding: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
-    }
+    /* CHART CARDS (Slightly Transparent for Watermark) */
+    div[data-testid="column"] {{
+        background-color: rgba(255, 255, 255, 0.85) !important;
+        border: 1px solid #F0F0F0 !important;
+        border-radius: 12px !important;
+        padding: 15px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02) !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # CONSTANTS
 SHEET_ID = "1Jw4p9uppgJU3Cfquz19fDUJaZooic-aD-PBcIjBZ2WU"
 ADMIN_PASSWORD = "admin123"
-SESSION_SECRET = "expo_final_v133_center" 
+SESSION_SECRET = "expo_final_v134_watermark" 
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 HEADERS = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET", "TIMESTAMP", "USER"]
 
@@ -139,7 +167,7 @@ def sync():
     st.session_state['inventory_df'] = load_data()
 
 # ==========================================
-# 3. AUTHENTICATION
+# 3. AUTH & LOGIN
 # ==========================================
 if 'logged_in' not in st.session_state:
     p = st.query_params
@@ -152,12 +180,12 @@ if not st.session_state['logged_in']:
     st.markdown("<br><br><h1 style='text-align: center; color: #2C3E50; font-weight: 800;'>ASSET MANAGEMENT PRO</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.4, 1])
     with c2:
-        tabs = st.tabs(["TECHNICIAN LOGIN", "ADMINISTRATOR LOGIN"])
+        tabs = st.tabs(["TECHNICIAN", "ADMINISTRATOR"])
         with tabs[0]:
             with st.form("t_login"):
                 u = st.text_input("Username")
                 p = st.text_input("PIN", type="password")
-                if st.form_submit_button("ENTER SYSTEM"):
+                if st.form_submit_button("LOGIN"):
                     ws_u = get_ws("Users")
                     if any(str(r['Username'])==u and str(r['PIN'])==p for r in ws_u.get_all_records()):
                         st.session_state.update(logged_in=True, user=u, role="Technician")
@@ -172,20 +200,20 @@ if not st.session_state['logged_in']:
                         st.session_state.update(logged_in=True, user="Administrator", role="Admin")
                         st.query_params.update(user="Administrator", token=make_token("Administrator"))
                         st.rerun()
-                    else: st.error("Invalid Password")
+                    else: st.error("Invalid")
 
 # ==========================================
-# 4. MAIN INTERFACE
+# 4. MAIN APP
 # ==========================================
 else:
     if 'inventory_df' not in st.session_state: sync()
     df = st.session_state['inventory_df']
     ws_inv = get_ws("Sheet1")
 
-    # --- CENTERED TITLE ---
+    # TITLE
     st.markdown('<div class="centered-title">Asset Management</div>', unsafe_allow_html=True)
 
-    # --- TOP CONTROL BAR ---
+    # TOP BAR
     h_nav, h_user, h_sync, h_out = st.columns([4, 2, 1, 1])
     
     with h_nav:
@@ -203,26 +231,18 @@ else:
         if st.button("LOGOUT", key="final_logout_btn"):
             st.session_state.clear(); st.query_params.clear(); st.rerun()
 
-    st.markdown("<hr style='margin: 15px 0; border: 1px solid #F5F5F5;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 10px 0; border: 1px solid #F5F5F5;'>", unsafe_allow_html=True)
 
-    # ==========================================
-    # 5. DASHBOARD WITH MODEL BREAKDOWN
-    # ==========================================
+    # PAGE LOGIC: DASHBOARD
     if nav == "DASHBOARD":
         st.markdown("### 📊 Model Performance Distribution")
-        
-        # Color Theme: Green (Available), Blue (Issued), Red (Faulty)
         clr_map = {"Available/New": "#28A745", "Available/Used": "#218838", "Issued": "#007BFF", "Faulty": "#DC3545"}
         
         if not df.empty:
             models = sorted([m for m in df['MODEL'].unique() if m.strip() != ""])
-            
-            # Responsive grid (3 per row for better readability)
             grid = st.columns(3)
             for i, model in enumerate(models):
                 sub = df[df['MODEL'] == model]
-                
-                # Logic to pull counts
                 t_total = len(sub)
                 t_avail = len(sub[sub['CONDITION'].str.contains('Available', na=False)])
                 t_issued = len(sub[sub['CONDITION'] == 'Issued'])
@@ -231,42 +251,38 @@ else:
                 with grid[i % 3]:
                     st.markdown(f"""
                     <div style='text-align:center;'>
-                        <b style='font-size:18px; color:#2C3E50;'>{model}</b><br>
-                        <span style='font-size:13px; color:#7F8C8D;'>Total Units: {t_total}</span>
-                        <div style='margin-top:8px; display:flex; justify-content:center; gap:10px; font-size:12px;'>
-                            <span style='color:#28A745;'><b>Available:</b> {t_avail}</span>
-                            <span style='color:#007BFF;'><b>Issued:</b> {t_issued}</span>
+                        <b style='font-size:18px;'>{model}</b><br>
+                        <span style='font-size:13px; color:#555;'>Total Units: {t_total}</span>
+                        <div style='margin-top:8px; font-size:12px;'>
+                            <span style='color:#28A745;'><b>Avail:</b> {t_avail}</span> | 
+                            <span style='color:#007BFF;'><b>Issued:</b> {t_issued}</span> | 
                             <span style='color:#DC3545;'><b>Faulty:</b> {t_faulty}</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                    
                     fig = px.pie(sub, names='CONDITION', hole=0.75, color='CONDITION', color_discrete_map=clr_map)
                     fig.update_layout(showlegend=False, height=200, margin=dict(t=20,b=10,l=10,r=10), paper_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig, use_container_width=True, key=f"dash_v133_{i}")
+                    st.plotly_chart(fig, use_container_width=True, key=f"d_pie_{i}")
         else:
-            st.info("System connected. Awaiting data entry.")
+            st.info("No data available.")
 
-    # ==========================================
-    # 6. OTHER SECTIONS (DONE logic included)
-    # ==========================================
+    # OTHER PAGES
     elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
-        with st.form("reg_form_master"):
-            st.markdown("#### ➕ REGISTER NEW INVENTORY")
+        with st.form("reg_form"):
+            st.markdown("#### ➕ REGISTER ASSET")
             c1, c2, c3 = st.columns(3)
-            atype, brand, model = c1.text_input("Type"), c2.text_input("Brand"), c3.text_input("Model")
-            serial, mac = c1.text_input("Serial"), c2.text_input("MAC")
-            loc = c3.selectbox("Store", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
+            at, br, md = c1.text_input("Type"), c2.text_input("Brand"), c3.text_input("Model")
+            sn, mc = c1.text_input("Serial"), c2.text_input("MAC")
+            lo = c3.selectbox("Store", ["MOBILITY STORE-10", "MOBILITY STORE-8", "SUSTAINABILITY BASEMENT", "TERRA BASEMENT"])
             if st.form_submit_button("SAVE ASSET"):
-                if serial:
-                    ws_inv.append_row([atype, brand, model, serial, mac, "Available/New", loc, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
-                    st.success("DONE")
-                    time.sleep(1); sync(); st.rerun()
+                if sn:
+                    ws_inv.append_row([at, br, md, sn, mc, "Available/New", lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                    st.success("DONE"); time.sleep(1); sync(); st.rerun()
                 else: st.error("Serial Required")
 
     elif nav == "DATABASE":
-        st.markdown("### 📦 MASTER INVENTORY")
-        q = st.text_input("🔍 Search records...")
+        st.markdown("### 📦 MASTER DATABASE")
+        q = st.text_input("🔍 Search Database...")
         f_df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df
         st.dataframe(f_df, use_container_width=True)
 
@@ -280,7 +296,7 @@ else:
             with u1:
                 with st.form("u_add"):
                     un, up = st.text_input("Name"), st.text_input("PIN")
-                    if st.form_submit_button("CREATE ACCOUNT"):
+                    if st.form_submit_button("CREATE"):
                         ws_u.append_row([un, up, "Standard"])
                         st.success("DONE"); time.sleep(1); st.rerun()
             with u2:
@@ -290,9 +306,9 @@ else:
                     st.success("DONE"); time.sleep(1); st.rerun()
 
     elif nav == "ISSUE ASSET":
-        with st.form("iss_form_final"):
-            st.markdown("### 🚀 AUTHORIZE ISSUANCE")
-            sn, tkt = st.text_input("Serial"), st.text_input("Ticket Reference")
+        with st.form("iss_f"):
+            st.markdown("### 🚀 ASSET ISSUANCE")
+            sn, tkt = st.text_input("Serial"), st.text_input("Ticket ID")
             if st.form_submit_button("AUTHORIZE"):
                 idx = df.index[df['SERIAL'] == sn]
                 if not idx.empty:
