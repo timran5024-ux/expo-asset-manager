@@ -92,15 +92,21 @@ def get_ws(name):
 def load_data():
     ws = get_ws("Sheet1")
     vals = ws.get_all_values()
-    expected_columns = ["ASSET TYPE", "Brand", "Model", "Serial Number", "MAC Address", "CONDITION", "Location", "Issued To", "Issued Date", "Registered Date", "Registered By"]
-    if len(vals) > 1:
-        headers = vals[0]
+    # Updated to match your EXACT Google Sheet headers
+    expected_columns = ["ASSET TYPE", "BRAND", "MODEL", "SERIAL", "MAC ADDRESS", "CONDITION", "LOCATION", "ISSUED TO", "TICKET"]
+    
+    if len(vals) > 0:
+        headers = [str(h).strip().upper() for h in vals[0]]
         df = pd.DataFrame(vals[1:], columns=headers)
-        # Ensure SN is treated as a clean string immediately
-        df['Serial Number'] = df['Serial Number'].astype(str).str.strip()
+        
+        # Fill missing columns if any
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = ''
+        
+        # Clean Serial for searching
+        if "SERIAL" in df.columns:
+            df['SERIAL'] = df['SERIAL'].astype(str).str.strip()
         return df
     else:
         return pd.DataFrame(columns=expected_columns)
@@ -195,13 +201,6 @@ else:
             fig_bar.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_bar, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-            st.subheader("Recently Issued Assets")
-            df['Issued Date'] = pd.to_datetime(df['Issued Date'], errors='coerce')
-            recent_issued = df[df['CONDITION'] == 'Issued'].sort_values('Issued Date', ascending=False).head(10)
-            st.dataframe(recent_issued[['ASSET TYPE', 'Serial Number', 'Issued To', 'Issued Date']], use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav in ["ASSET CONTROL", "REGISTER ASSET"]:
         if st.session_state['role'] != "Admin" and nav == "ASSET CONTROL": st.error("Access Denied"); st.stop()
@@ -215,114 +214,103 @@ else:
             with tabs[0]:
                 with st.form("add_asset_f"):
                     c1, c2, c3 = st.columns(3)
-                    at = c1.text_input("Asset Type")
-                    br = c2.text_input("Brand")
-                    md = c3.text_input("Model")
-                    sn = c1.text_input("Serial Number (SN)")
-                    mc = c2.text_input("MAC Address")
-                    lo = c3.selectbox("Location", ["MOBILITY STORE-10", "BASEMENT", "TERRA"])
-                    st_v = st.selectbox("Condition", ["Available/New", "Available/Used", "Faulty"])
+                    at = c1.text_input("ASSET TYPE")
+                    br = c2.text_input("BRAND")
+                    md = c3.text_input("MODEL")
+                    sn = c1.text_input("SERIAL")
+                    mc = c2.text_input("MAC ADDRESS")
+                    lo = c3.selectbox("LOCATION", ["MOBILITY STORE-10", "BASEMENT", "TERRA"])
+                    st_v = st.selectbox("CONDITION", ["Available/New", "Available/Used", "Faulty"])
                     if st.form_submit_button("REGISTER ASSET"):
-                        ws_inv.append_row([at, br, md, str(sn).strip(), mc, st_v, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                        # Appending row based on your EXACT Google Sheet headers
+                        ws_inv.append_row([at, br, md, str(sn).strip(), mc, st_v, lo, "", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                         st.success("Asset Registered!"); time.sleep(1); st.rerun()
 
         if st.session_state['role'] == "Admin":
             with tabs[1]:
-                sn_search = st.text_input("Enter Serial Number to Modify").strip()
+                sn_search = st.text_input("Enter SERIAL to Modify").strip()
                 if sn_search:
-                    matching_rows = df[df['Serial Number'].str.upper() == sn_search.upper()]
+                    matching_rows = df[df['SERIAL'].str.upper() == sn_search.upper()]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         data = df.iloc[row_idx]
                         with st.form("modify_asset"):
                             c1, c2, c3 = st.columns(3)
-                            at = c1.text_input("Asset Type", value=data['ASSET TYPE'])
-                            br = c2.text_input("Brand", value=data['Brand'])
-                            md = c3.text_input("Model", value=data['Model'])
-                            sn = c1.text_input("Serial Number (SN)", value=data['Serial Number'])
-                            mc = c2.text_input("MAC Address", value=data['MAC Address'])
+                            at = c1.text_input("ASSET TYPE", value=data['ASSET TYPE'])
+                            br = c2.text_input("BRAND", value=data['BRAND'])
+                            md = c3.text_input("MODEL", value=data['MODEL'])
+                            sn = c1.text_input("SERIAL", value=data['SERIAL'])
+                            mc = c2.text_input("MAC ADDRESS", value=data['MAC ADDRESS'])
                             cond_list = ["Available/New", "Available/Used", "Faulty", "Issued"]
-                            st_v = c3.selectbox("Condition", cond_list, index=cond_list.index(data['CONDITION']) if data['CONDITION'] in cond_list else 0)
+                            st_v = c3.selectbox("CONDITION", cond_list, index=cond_list.index(data['CONDITION']) if data['CONDITION'] in cond_list else 0)
                             loc_list = ["MOBILITY STORE-10", "BASEMENT", "TERRA"]
-                            lo = c1.selectbox("Location", loc_list, index=loc_list.index(data['Location']) if data['Location'] in loc_list else 0)
-                            issued_to = c2.text_input("Issued To", value=data['Issued To'])
-                            try: idate = datetime.strptime(data['Issued Date'], "%Y-%m-%d")
-                            except: idate = datetime.now()
-                            issued_date = c3.date_input("Issued Date", value=idate)
+                            lo = c1.selectbox("LOCATION", loc_list, index=loc_list.index(data['LOCATION']) if data['LOCATION'] in loc_list else 0)
+                            issued_to = c2.text_input("ISSUED TO", value=data['ISSUED TO'])
                             if st.form_submit_button("UPDATE ASSET"):
                                 row_num = row_idx + 2
-                                update_vals = [[at, br, md, sn, mc, st_v, lo, issued_to, issued_date.strftime("%Y-%m-%d"), data['Registered Date'], st.session_state['user']]]
-                                ws_inv.update(values=update_vals, range_name=f'A{row_num}:K{row_num}')
+                                update_vals = [[at, br, md, sn, mc, st_v, lo, issued_to, data['TICKET']]]
+                                ws_inv.update(values=update_vals, range_name=f'A{row_num}:I{row_num}')
                                 st.success("Asset Updated!"); time.sleep(1); st.rerun()
-                    else: st.error("Serial Number not found.")
+                    else: st.error("SERIAL not found.")
 
             with tabs[2]:
-                sn_issue = st.text_input("Enter Serial Number to Issue", key="admin_sn_issue").strip()
-                issued_to = st.text_input("Issued To", key="admin_issued_to")
+                sn_issue = st.text_input("Enter SERIAL to Issue", key="admin_sn_issue").strip()
+                issued_to = st.text_input("ISSUED TO", key="admin_issued_to")
                 if st.button("ISSUE ASSET", key="admin_issue_btn"):
-                    matching_rows = df[(df['Serial Number'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+                    matching_rows = df[(df['SERIAL'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
-                        ws_inv.update(values=[["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]], range_name=f'F{row_num}:I{row_num}')
+                        ws_inv.update_cell(row_num, 6, "Issued")
+                        ws_inv.update_cell(row_num, 8, issued_to)
                         st.success("Asset Issued!"); time.sleep(1); st.rerun()
                     else: st.error("Asset not found or not available.")
 
             with tabs[3]:
-                sn_return = st.text_input("Enter Serial Number to Return").strip()
-                return_status = st.selectbox("Return Condition", ["Available/Used", "Faulty"])
+                sn_return = st.text_input("Enter SERIAL to Return").strip()
+                return_status = st.selectbox("Return CONDITION", ["Available/Used", "Faulty"])
                 if st.button("RETURN ASSET"):
-                    matching_rows = df[(df['Serial Number'].str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
+                    matching_rows = df[(df['SERIAL'].str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
-                        ws_inv.update(values=[[return_status, "", "", ""]], range_name=f'F{row_num}:I{row_num}')
+                        ws_inv.update_cell(row_num, 6, return_status)
+                        ws_inv.update_cell(row_num, 8, "")
                         st.success("Asset Returned!"); time.sleep(1); st.rerun()
                     else: st.error("Asset not found or not issued.")
 
             with tabs[4]:
-                sn_del = st.text_input("Enter Serial Number to Delete").strip()
+                sn_del = st.text_input("Enter SERIAL to Delete").strip()
                 if st.button("DELETE ASSET"):
                     if sn_del:
-                        # SEARCH LOGIC: Check exact, then partial
-                        match_logic = df['Serial Number'].str.upper() == sn_del.upper()
+                        match_logic = df['SERIAL'].str.upper() == sn_del.upper()
                         matching_rows = df[match_logic]
-                        
-                        if matching_rows.empty:
-                            # Try partial match if exact fails
-                            match_logic = df['Serial Number'].str.contains(sn_del, case=False, na=False)
-                            matching_rows = df[match_logic]
-
                         if not matching_rows.empty:
                             row_idx = matching_rows.index[0]
-                            found_sn = matching_rows.iloc[0]['Serial Number']
                             ws_inv.delete_rows(int(row_idx + 2))
-                            st.success(f"Asset with SN: {found_sn} successfully deleted.")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"Serial Number '{sn_del}' not found. Verify it matches the Database exactly.")
-                    else:
-                        st.warning("Please enter a Serial Number.")
+                            st.success(f"Asset with SERIAL: {sn_del} deleted.")
+                            time.sleep(1); st.rerun()
+                        else: st.error(f"SERIAL '{sn_del}' not found.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "ISSUE ASSET":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        sn_issue = st.text_input("Enter Serial Number to Issue").strip()
-        issued_to = st.text_input("Issued To")
+        sn_issue = st.text_input("Enter SERIAL to Issue").strip()
+        issued_to = st.text_input("ISSUED TO")
         if st.button("ISSUE ASSET"):
-            matching_rows = df[(df['Serial Number'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+            matching_rows = df[(df['SERIAL'].str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
             if not matching_rows.empty:
                 row_idx = matching_rows.index[0]
                 row_num = row_idx + 2
-                ws_inv.update(values=[["Issued", "", issued_to, datetime.now().strftime("%Y-%m-%d")]], range_name=f'F{row_num}:I{row_num}')
+                ws_inv.update_cell(row_num, 6, "Issued")
+                ws_inv.update_cell(row_num, 8, issued_to)
                 st.success("Asset Issued!"); time.sleep(1); st.rerun()
             else: st.error("Asset not found or not available.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "DATABASE":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        search_term = st.text_input("Search Database (by Serial Number, Asset Type, etc.)")
+        search_term = st.text_input("Search Database")
         filtered_df = df[df.apply(lambda row: row.astype(str).str.contains(search_term, case=False).any(), axis=1)] if search_term else df
         st.dataframe(filtered_df, use_container_width=True)
         
