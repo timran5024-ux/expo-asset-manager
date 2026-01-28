@@ -10,79 +10,85 @@ from PIL import Image
 import hashlib
 
 # ==========================================
-# 1. CONFIGURATION & MODERN UI
+# 1. CONFIGURATION & CLEAN UI CSS
 # ==========================================
 st.set_page_config(page_title="Expo Asset Manager", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
+# --- THE FIX FOR REMOVING GITHUB & MANAGE APP ICONS ---
 st.markdown("""
 <style>
-    /* 1. HIDE JUNK, BUT KEEP SIDEBAR TOGGLE VISIBLE */
-    .stAppDeployButton {display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
-    footer {visibility: hidden !important;}
-    #MainMenu {visibility: visible !important;} /* Keep menu accessible */
+    /* 1. HIDE TOP HEADER BAR (GitHub, Settings, etc.) */
+    /* Hides the whole header container */
+    header[data-testid="stHeader"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    /* Hides the specific toolbar area just in case */
+    [data-testid="stToolbar"] {
+        visibility: hidden !important;
+        display: none !important;
+    }
+    /* Hides the hamburger menu */
+    #MainMenu {
+        visibility: hidden !important;
+        display: none !important;
+    }
+
+    /* 2. HIDE BOTTOM FOOTER & "MANAGE APP" BUTTON */
+    /* This is the specific class for the bottom right button */
+    .stAppDeployButton {
+        visibility: hidden !important;
+        display: none !important;
+        height: 0px !important;
+    }
+    /* Hides the general footer area */
+    footer {
+        visibility: hidden !important;
+        display: none !important;
+    }
+    /* Hides extra decoration bars sometimes added by Streamlit Cloud */
+    div[data-testid="stDecoration"] {
+        display: none !important;
+    }
+    /* Hides status widgets */
+    div[data-testid="stStatusWidget"] {
+        display: none !important;
+    }
+
+    /* 3. GENERAL APP STYLING (Keep it looking professional) */
+    .stApp {
+        background-color: #f4f6f9;
+    }
+    /* Add some padding to the top since the header is gone */
+    .main .block-container {
+        padding-top: 2rem !important;
+    }
     
-    /* 2. MODERN DASHBOARD CARDS (Glassmorphism) */
-    div[data-testid="metric-container"] {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-        padding: 15px;
-        color: var(--text-color);
-        transition: transform 0.2s;
-    }
-    div[data-testid="metric-container"]:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.2);
-    }
-
-    /* 3. CHART CARDS ZOOM EFFECT */
-    div[data-testid="column"] {
-        transition: all 0.3s ease;
-        border-radius: 12px;
-        padding: 10px;
-    }
-    div[data-testid="column"]:hover {
-        transform: scale(1.03);
-        z-index: 10;
-        background-color: var(--secondary-background-color);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    }
-
-    /* 4. SIDEBAR VISIBILITY FIX */
-    section[data-testid="stSidebar"] .stRadio label {
-        font-size: 16px !important;
-        font-weight: 500 !important;
-        padding: 10px 5px;
-        border-radius: 5px;
-    }
-
-    /* 5. FORM STYLING */
+    /* Card and Form Styling from previous versions */
     div[data-testid="stForm"] {
-        background-color: var(--secondary-background-color);
-        padding: 25px; 
-        border-radius: 15px; 
-        border-left: 5px solid #cfaa5e;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        background: #ffffff; 
+        padding: 30px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        border-top: 5px solid #cfaa5e;
     }
-    
-    /* 6. GLOBAL BUTTONS */
+    div[data-testid="metric-container"] {
+       background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+       backdrop-filter: blur(10px);
+       border-radius: 15px;
+       border: 1px solid rgba(255, 255, 255, 0.18);
+       box-shadow: 0 4px 15px 0 rgba(0, 0, 0, 0.05);
+       padding: 15px;
+       color: #31333F;
+    }
     .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 45px;
-        font-weight: 600;
-        border: none;
-        transition: 0.3s;
+        width: 100%; 
+        border-radius: 6px; 
+        height: 45px; 
+        font-weight: 600; 
+        transition: 0.2s;
     }
-    .stButton>button:hover {
-        filter: brightness(110%);
-        transform: translateY(-2px);
-    }
+    .stButton>button:active {transform: scale(0.98);}
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,7 +108,7 @@ except ImportError:
     CAMERA_AVAILABLE = False
 
 # ==========================================
-# 2. SESSION & CONNECTION
+# 2. SESSION SECURITY
 # ==========================================
 def make_token(username):
     raw = f"{username}{SESSION_SECRET}"
@@ -124,6 +130,9 @@ def clear_login_session():
     st.session_state.clear()
     st.query_params.clear()
 
+# ==========================================
+# 3. CONNECTION & DATA
+# ==========================================
 @st.cache_resource
 def get_client():
     try:
@@ -169,7 +178,7 @@ def load_data_initial():
 
 def sync_local_state():
     if 'inventory_df' not in st.session_state or st.session_state['inventory_df'] is None:
-        with st.spinner("Syncing Database..."):
+        with st.spinner("Downloading Database..."):
             st.session_state['inventory_df'] = load_data_initial()
 
 def force_reload():
@@ -212,19 +221,18 @@ if 'logged_in' not in st.session_state:
 # 5. LOGIN SCREEN
 # ==========================================
 def login_screen():
+    # Add padding since header is gone
     st.markdown("<br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.markdown("<h1 style='text-align: center; color: #cfaa5e;'>Expo Asset Manager</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; opacity: 0.7;'>Professional Inventory System</p>", unsafe_allow_html=True)
-        
-        t1, t2 = st.tabs(["Technician Login", "Admin Login"])
+        t1, t2 = st.tabs(["Technician", "Admin"])
         
         with t1:
             with st.form("tech"):
                 u = st.text_input("Username")
                 p = st.text_input("PIN", type="password")
-                if st.form_submit_button("Access Dashboard"):
+                if st.form_submit_button("Login"):
                     ws_u = get_worksheet("Users")
                     if ws_u:
                         users = ws_u.get_all_records()
@@ -241,7 +249,7 @@ def login_screen():
         with t2:
             with st.form("admin"):
                 p = st.text_input("Password", type="password")
-                if st.form_submit_button("Access Admin Panel"):
+                if st.form_submit_button("Login"):
                     if p == ADMIN_PASSWORD:
                         set_login_session("Administrator", "Admin", True)
                         st.rerun()
@@ -257,33 +265,27 @@ else:
     df = st.session_state['inventory_df']
     ws_inv = get_worksheet("Sheet1")
 
-    # --- SIDEBAR (FIXED) ---
-    st.sidebar.markdown(f"## 👤 {st.session_state['user']}")
-    st.sidebar.markdown("---")
+    st.sidebar.markdown(f"### 👤 {st.session_state['user']}")
     
-    if st.session_state['role'] == "Technician":
-        nav = st.sidebar.radio("Navigation", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
-    else:
-        nav = st.sidebar.radio("Admin Control", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
-    
-    st.sidebar.markdown("---")
-    c1, c2 = st.sidebar.columns(2)
-    if c1.button("🔄 Sync"): 
+    if st.sidebar.button("🔄 Refresh Data"): 
         force_reload()
-        st.success("OK")
+        st.success("Refreshed!")
         time.sleep(0.5)
         st.rerun()
-    if c2.button("🚪 Logout"): 
+        
+    if st.sidebar.button("🚪 Logout"): 
         clear_login_session()
         st.rerun()
 
     # --- TECHNICIAN ---
     if st.session_state['role'] == "Technician":
-        st.subheader(f"{nav}")
+        st.title("🛠️ Technician Dashboard")
+        nav = st.selectbox("Menu", ["🚀 Issue Asset", "📥 Return Asset", "🎒 My Inventory", "➕ Add Asset", "⚡ Bulk Import"])
+        st.divider()
 
         if nav == "🚀 Issue Asset":
             c1, c2 = st.columns([2, 1])
-            with c1: search = st.text_input("Enter Serial Number")
+            with c1: search = st.text_input("Enter Serial")
             with c2:
                 if CAMERA_AVAILABLE:
                     cam = st.camera_input("Scan QR")
@@ -297,6 +299,7 @@ else:
                     item = match.iloc[0]
                     idx = int(match.index[0])
                     st.info(f"Found: {item['MODEL']} | {item['CONDITION']}")
+                    
                     if "Available" in str(item['CONDITION']):
                         with st.form("issue"):
                             tkt = st.text_input("Ticket #")
@@ -305,10 +308,12 @@ else:
                                 ws_inv.update_cell(sheet_row, 6, "Issued")
                                 ws_inv.update_cell(sheet_row, 8, st.session_state['user'])
                                 ws_inv.update_cell(sheet_row, 9, tkt)
+                                
                                 df.at[idx, 'CONDITION'] = "Issued"
                                 df.at[idx, 'ISSUED TO'] = st.session_state['user']
                                 df.at[idx, 'TICKET'] = tkt
                                 st.session_state['inventory_df'] = df
+                                
                                 st.success("Issued!"); time.sleep(0.5); st.rerun()
                     else: st.warning(f"Item is {item['CONDITION']}")
                 else: st.error("Not Found")
@@ -323,16 +328,19 @@ else:
                     stat = c1.selectbox("New Condition", ["Available/New", "Available/Used", "Faulty"])
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                     loc = c2.selectbox("Location", stores)
+                    
                     if st.form_submit_button("Return"):
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
                         ws_inv.update_cell(sheet_row, 6, stat)
                         ws_inv.update_cell(sheet_row, 7, loc)
                         ws_inv.update_cell(sheet_row, 8, "")
+                        
                         df.at[idx, 'CONDITION'] = stat
                         df.at[idx, 'LOCATION'] = loc
                         df.at[idx, 'ISSUED TO'] = ""
                         st.session_state['inventory_df'] = df
+                        
                         st.success("Returned!"); time.sleep(0.5); st.rerun()
 
         elif nav == "➕ Add Asset":
@@ -344,10 +352,12 @@ else:
                 stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                 loc = c2.selectbox("Location", stores)
                 stat = st.selectbox("Condition", ["Available/New", "Available/Used"])
+                
                 if st.form_submit_button("Save"):
                     if sn not in df['SERIAL'].astype(str).tolist():
                         row = [typ, man, mod, sn, mac, stat, loc, "", "", get_timestamp(), st.session_state['user']]
                         safe_add_rows(ws_inv, [row])
+                        
                         new_df = pd.DataFrame([row], columns=HEADERS)
                         st.session_state['inventory_df'] = pd.concat([df, new_df], ignore_index=True)
                         st.success("Saved!"); time.sleep(0.5); st.rerun()
@@ -364,7 +374,11 @@ else:
                     for i,r in d.iterrows():
                         s = str(r.get('SERIAL', r.get('SERIAL NUMBER', '')))
                         if s and s not in df['SERIAL'].astype(str).tolist():
-                            rows.append([r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), s, r.get('MAC ADDRESS', ''), "Available/New", r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"])
+                            rows.append([
+                                r.get('ASSET TYPE', ''), r.get('BRAND', ''), r.get('MODEL', ''), 
+                                s, r.get('MAC ADDRESS', ''), "Available/New", 
+                                r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
+                            ])
                     if rows: 
                         safe_add_rows(ws_inv, rows)
                         force_reload()
@@ -376,60 +390,65 @@ else:
 
     # --- ADMIN ---
     elif st.session_state['role'] == "Admin":
-        st.title(f"{nav}")
+        st.title("📊 Admin Panel")
+        nav = st.sidebar.radio("Menu", ["Dashboard", "Manage Users", "Master Asset Control", "Database"])
         
         if nav == "Dashboard":
-            # 1. TOP STATS ROW
-            if not df.empty:
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("📦 Total Assets", len(df))
-                c2.metric("🟢 Available", len(df[df['CONDITION'].str.contains('Available', na=False)]))
-                c3.metric("🔵 Issued", len(df[df['CONDITION'] == 'Issued']))
-                c4.metric("🔴 Faulty", len(df[df['CONDITION'] == 'Faulty']))
-                st.markdown("---")
+            # Top Stat Cards
+            c1, c2, c3 = st.columns(3)
+            c1.metric("📦 Total Assets", len(df))
+            c2.metric("🟢 Available", len(df[df['CONDITION'].str.contains('Available', na=False)]))
+            c3.metric("🔵 Issued", len(df[df['CONDITION']=='Issued']))
+            st.markdown("<br>", unsafe_allow_html=True)
 
-                # 2. MAIN LAYOUT
-                color_map = {"Available/New": "#28a745", "Available/Used": "#218838", "Issued": "#007bff", "Faulty": "#dc3545"}
+            if not df.empty:
+                # Define colors
+                color_map = {
+                    "Available/New": "#28a745",
+                    "Available/Used": "#218838",
+                    "Issued": "#007bff",
+                    "Faulty": "#dc3545"
+                }
+                
+                # Get unique models and sort them
                 valid_models = sorted([m for m in df['MODEL'].unique() if str(m).strip() != ""])
                 
-                col_left, col_right = st.columns([1.5, 3.5])
+                # Create grid layout (3 columns per row)
+                cols_per_row = 3
+                rows_needed = (len(valid_models) + cols_per_row - 1) // cols_per_row
                 
-                with col_left:
-                    st.markdown("##### 📋 Asset List")
-                    # Make a scrollable container for list
-                    with st.container(height=500):
-                        for m in valid_models:
-                            sub = df[df['MODEL'] == m]
-                            total = len(sub)
-                            faulty = len(sub[sub['CONDITION'] == 'Faulty'])
-                            s_color = "red" if faulty > 0 else "green"
-                            st.caption(f"**{m}**")
-                            st.markdown(f"Total: {total} | <span style='color:{s_color}'>Faulty: {faulty}</span>", unsafe_allow_html=True)
-                            st.divider()
-
-                with col_right:
-                    st.markdown("##### 📈 Visual Overview")
-                    # Grid Layout
-                    cols_per_row = 3
-                    rows_needed = (len(valid_models) + cols_per_row - 1) // cols_per_row
-                    
-                    for row_idx in range(rows_needed):
-                        cols = st.columns(cols_per_row)
-                        for col_idx in range(cols_per_row):
-                            idx = row_idx * cols_per_row + col_idx
-                            if idx < len(valid_models):
-                                m_name = valid_models[idx]
-                                sub = df[df['MODEL'] == m_name]
-                                atype = sub['ASSET TYPE'].iloc[0] if not sub.empty else ""
+                for row_idx in range(rows_needed):
+                    cols = st.columns(cols_per_row)
+                    for col_idx in range(cols_per_row):
+                        idx = row_idx * cols_per_row + col_idx
+                        if idx < len(valid_models):
+                            model_name = valid_models[idx]
+                            sub = df[df['MODEL'] == model_name]
+                            
+                            # Find asset type for context
+                            atype = sub['ASSET TYPE'].iloc[0] if not sub.empty else ""
+                            
+                            with cols[col_idx]:
+                                # Clean Pie Chart Title
+                                title_html = f"<b>{model_name}</b><br><span style='font-size:12px; opacity:0.6'>{atype} (Total: {len(sub)})</span>"
                                 
-                                with cols[col_idx]:
-                                    title_html = f"<b>{m_name}</b><br><span style='font-size:10px; opacity:0.6'>{atype}</span>"
-                                    fig = px.pie(sub, names='CONDITION', title=title_html,
-                                                 color='CONDITION', color_discrete_map=color_map, hole=0.6)
-                                    fig.update_layout(showlegend=False, margin=dict(t=35, b=5, l=5, r=5), height=150)
-                                    st.plotly_chart(fig, use_container_width=True)
+                                fig = px.pie(
+                                    sub, 
+                                    names='CONDITION', 
+                                    title=title_html,
+                                    color='CONDITION',
+                                    color_discrete_map=color_map,
+                                    hole=0.5
+                                )
+                                # Keep it compact and clean
+                                fig.update_layout(
+                                    showlegend=False,
+                                    margin=dict(t=40, b=10, l=10, r=10),
+                                    height=200
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("System is empty. Go to 'Master Asset Control' to add assets.")
+                st.info("No assets found in the database.")
 
         elif nav == "Manage Users":
             st.subheader("👥 Users")
@@ -468,6 +487,7 @@ else:
                     stores = sorted(list(set(FIXED_STORES) | set(df['LOCATION'].unique())))
                     loc = c7.selectbox("Location", stores)
                     qty = c8.number_input("Quantity", 1, 100, 1)
+                    
                     if st.form_submit_button("Add Asset"):
                         if not atype: st.error("Type Required")
                         elif not serial and qty == 1: st.error("Serial Required")
@@ -477,6 +497,7 @@ else:
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
+                            
                             safe_add_rows(ws_inv, rows)
                             force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
@@ -489,6 +510,7 @@ else:
                         sel = st.selectbox("Select", match['SERIAL'].tolist())
                         idx = int(df[df['SERIAL']==sel].index[0])
                         sheet_row = idx + 2
+                        
                         c1, c2 = st.columns(2)
                         with c1:
                             with st.form("upd"):
