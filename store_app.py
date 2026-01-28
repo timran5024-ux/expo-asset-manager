@@ -75,18 +75,18 @@ def load_data_initial():
         
         # Self-Repair Headers if missing
         if raw[0] != HEADERS:
-            ws.update("A1:K1", [HEADERS])
-            # If empty data but wrong headers, just return empty
-            if len(raw) == 1: return pd.DataFrame(columns=HEADERS)
-            # If data exists, assume structure is mostly correct
-            raw[0] = HEADERS
+            # We assume the first row is corrupted or mismatched, so we ignore it
+            # and map columns strictly by index order
+            pass 
 
         rows = raw[1:]
         # Pad rows to avoid errors
+        clean_rows = []
         for r in rows:
             while len(r) < len(HEADERS): r.append("")
+            clean_rows.append(r[:len(HEADERS)])
             
-        return pd.DataFrame(rows, columns=HEADERS)
+        return pd.DataFrame(clean_rows, columns=HEADERS)
     except: return pd.DataFrame(columns=HEADERS)
 
 def sync_local_state():
@@ -278,7 +278,9 @@ else:
                                 r.get('LOCATION', ''), "", "", get_timestamp(), "BULK"
                             ])
                     if rows: 
-                        ws_inv.append_rows(rows)
+                        # FIX 100: Use Loop instead of append_rows for compatibility
+                        for r in rows:
+                            ws_inv.append_row(r)
                         force_reload() # Full reload required for bulk
                         st.success(f"Imported {len(rows)}")
             else: st.error("Permission Denied")
@@ -346,8 +348,12 @@ else:
                             for i in range(qty):
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
-                            ws_inv.append_rows(rows)
-                            force_reload() # Full reload for admin bulk add
+                            
+                            # FIX 100: Use Loop to avoid Version Error
+                            for r in rows:
+                                ws_inv.append_row(r)
+                                
+                            force_reload() 
                             st.success(f"Added {qty} items"); st.rerun()
 
             with tab2:
