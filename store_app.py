@@ -75,8 +75,7 @@ def load_data_initial():
         
         # Self-Repair Headers if missing
         if raw[0] != HEADERS:
-            # We assume the first row is corrupted or mismatched, so we ignore it
-            # and map columns strictly by index order
+            # Skip repair logic to avoid write conflict, just map columns
             pass 
 
         rows = raw[1:]
@@ -337,7 +336,7 @@ else:
                                 s = serial if qty==1 else f"{serial}-{i+1}"
                                 rows.append([atype, brand, model, s, mac, cond, loc, "", "", get_timestamp(), "ADMIN"])
                             
-                            # SAFE LOOP
+                            # SAFE LOOP - DO NOT USE APPEND_ROWS
                             for r in rows:
                                 ws_inv.append_row(r)
                             
