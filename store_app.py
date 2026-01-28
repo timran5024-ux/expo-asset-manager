@@ -221,14 +221,14 @@ else:
                     lo = c3.selectbox("Location", ["MOBILITY STORE-10", "BASEMENT", "TERRA"])
                     st_v = st.selectbox("Condition", ["Available/New", "Available/Used", "Faulty"])
                     if st.form_submit_button("REGISTER ASSET"):
-                        ws_inv.append_row([at, br, md, sn, mc, st_v, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
+                        ws_inv.append_row([at, br, md, sn.strip(), mc, st_v, lo, "", "", datetime.now().strftime("%Y-%m-%d"), st.session_state['user']])
                         st.success("Asset Registered!"); time.sleep(1); st.rerun()
 
         if st.session_state['role'] == "Admin":
             with tabs[1]:
-                sn_search = st.text_input("Enter Serial Number to Modify")
+                sn_search = st.text_input("Enter Serial Number to Modify").strip()
                 if sn_search:
-                    matching_rows = df[df['Serial Number'].str.contains(sn_search, case=False, na=False)]
+                    matching_rows = df[df['Serial Number'].str.strip().str.upper() == sn_search.upper()]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         data = df.iloc[row_idx]
@@ -244,10 +244,8 @@ else:
                             loc_list = ["MOBILITY STORE-10", "BASEMENT", "TERRA"]
                             lo = c1.selectbox("Location", loc_list, index=loc_list.index(data['Location']) if data['Location'] in loc_list else 0)
                             issued_to = c2.text_input("Issued To", value=data['Issued To'])
-                            try:
-                                idate = datetime.strptime(data['Issued Date'], "%Y-%m-%d")
-                            except:
-                                idate = datetime.now()
+                            try: idate = datetime.strptime(data['Issued Date'], "%Y-%m-%d")
+                            except: idate = datetime.now()
                             issued_date = c3.date_input("Issued Date", value=idate)
                             if st.form_submit_button("UPDATE ASSET"):
                                 row_num = row_idx + 2
@@ -257,10 +255,10 @@ else:
                     else: st.error("Serial Number not found.")
 
             with tabs[2]:
-                sn_issue = st.text_input("Enter Serial Number to Issue", key="admin_sn_issue")
+                sn_issue = st.text_input("Enter Serial Number to Issue", key="admin_sn_issue").strip()
                 issued_to = st.text_input("Issued To", key="admin_issued_to")
                 if st.button("ISSUE ASSET", key="admin_issue_btn"):
-                    matching_rows = df[(df['Serial Number'] == sn_issue) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+                    matching_rows = df[(df['Serial Number'].str.strip().str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
@@ -269,10 +267,10 @@ else:
                     else: st.error("Asset not found or not available.")
 
             with tabs[3]:
-                sn_return = st.text_input("Enter Serial Number to Return")
+                sn_return = st.text_input("Enter Serial Number to Return").strip()
                 return_status = st.selectbox("Return Condition", ["Available/Used", "Faulty"])
                 if st.button("RETURN ASSET"):
-                    matching_rows = df[(df['Serial Number'] == sn_return) & (df['CONDITION'] == 'Issued')]
+                    matching_rows = df[(df['Serial Number'].str.strip().str.upper() == sn_return.upper()) & (df['CONDITION'] == 'Issued')]
                     if not matching_rows.empty:
                         row_idx = matching_rows.index[0]
                         row_num = row_idx + 2
@@ -281,22 +279,27 @@ else:
                     else: st.error("Asset not found or not issued.")
 
             with tabs[4]:
-                sn_del = st.text_input("Enter Serial Number to Delete")
+                sn_del = st.text_input("Enter Serial Number to Delete").strip()
                 if st.button("DELETE ASSET"):
-                    matching_rows = df[df['Serial Number'] == sn_del]
-                    if not matching_rows.empty:
-                        row_idx = matching_rows.index[0]
-                        ws_inv.delete_rows(row_idx + 2)
-                        st.success("Asset Deleted!"); time.sleep(1); st.rerun()
-                    else: st.error("Serial Number not found.")
+                    if sn_del:
+                        # Improved search: strip spaces and ignore case
+                        matching_rows = df[df['Serial Number'].str.strip().str.upper() == sn_del.upper()]
+                        if not matching_rows.empty:
+                            row_idx = matching_rows.index[0]
+                            ws_inv.delete_rows(row_idx + 2)
+                            st.success(f"Asset with SN: {sn_del} Deleted!"); time.sleep(1); st.rerun()
+                        else:
+                            st.error(f"Serial Number '{sn_del}' not found in database.")
+                    else:
+                        st.warning("Please enter a Serial Number.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     elif nav == "ISSUE ASSET":
         st.markdown('<div class="exec-card">', unsafe_allow_html=True)
-        sn_issue = st.text_input("Enter Serial Number to Issue")
+        sn_issue = st.text_input("Enter Serial Number to Issue").strip()
         issued_to = st.text_input("Issued To")
         if st.button("ISSUE ASSET"):
-            matching_rows = df[(df['Serial Number'] == sn_issue) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
+            matching_rows = df[(df['Serial Number'].str.strip().str.upper() == sn_issue.upper()) & (df['CONDITION'].isin(['Available/New', 'Available/Used']))]
             if not matching_rows.empty:
                 row_idx = matching_rows.index[0]
                 row_num = row_idx + 2
